@@ -1,6 +1,11 @@
 RewriteEngine On
+RewriteBase /BuildMaster/
 
-# Перенаправлення всіх запитів на index.php
+# Прямі шляхи до статичних HTML файлів (якщо потрібно)
+RewriteRule ^Calculator/?$ Views/calculator/calculator.php [L]
+RewriteRule ^Calculator/project-form/?$ Views/calculator/project-form.php [L]
+
+# Всі інші запити направляються на index.php
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^(.*)$ index.php [QSA,L]
@@ -17,7 +22,7 @@ RewriteRule ^(.*)$ index.php [QSA,L]
     ExpiresByType image/svg+xml "access plus 1 month"
 </IfModule>
 
-# Сжатие файлов
+# Стиснення файлів
 <IfModule mod_deflate.c>
     AddOutputFilterByType DEFLATE text/plain
     AddOutputFilterByType DEFLATE text/html
@@ -31,17 +36,24 @@ RewriteRule ^(.*)$ index.php [QSA,L]
 </IfModule>
 
 # Безпека
-Header always unset X-Powered-By
-Header always set X-Content-Type-Options nosniff
-Header always set X-Frame-Options DENY
-Header always set X-XSS-Protection "1; mode=block"
+<IfModule mod_headers.c>
+    Header always unset X-Powered-By
+    Header always set X-Content-Type-Options nosniff
+    Header always set X-Frame-Options DENY
+    Header always set X-XSS-Protection "1; mode=block"
+</IfModule>
 
 # Заборона доступу до файлів конфігурації
 <FilesMatch "^\.">
     Require all denied
 </FilesMatch>
 
-# Заборона доступу до PHP файлів в певних папках
+# Заборона доступу до PHP файлів конфігурації
 <FilesMatch "\.(inc|config)$">
     Require all denied
+</FilesMatch>
+
+# Дозволити доступ до CSS, JS та зображень
+<FilesMatch "\.(css|js|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$">
+    Require all granted
 </FilesMatch>

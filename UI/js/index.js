@@ -402,7 +402,7 @@ function checkAuthAndRedirect() {
         .then(response => response.json())
         .then(data => {
             if (data.authenticated) {
-                window.location.href = '/calculator.php';
+                window.location.href = '/BuildMaster/Calculator';
             } else {
                 openAuthModal('calculator');
             }
@@ -412,6 +412,8 @@ function checkAuthAndRedirect() {
             openAuthModal('calculator');
         });
 }
+
+
 
 
 //Вихід з системи
