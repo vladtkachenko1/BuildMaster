@@ -1,6 +1,12 @@
 <?php
-// index.php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+
+// Увімкни помилки для локального середовища
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
 
 // Автозавантажувач класів
 spl_autoload_register(function ($class) {
@@ -18,50 +24,81 @@ spl_autoload_register(function ($class) {
             return;
         }
     }
+
+    // Якщо клас не знайдено — повідомити
+    die("Помилка: не знайдено клас {$class}");
 });
 
-// Простий роутер
-$request = $_SERVER['REQUEST_URI'];
-$path = parse_url($request, PHP_URL_PATH);
-$query = parse_url($request, PHP_URL_QUERY);
+// Отримуємо URI
+$requestUri = $_SERVER['REQUEST_URI'];
+$path = parse_url($requestUri, PHP_URL_PATH);
 
-// Видаляємо базовий шлях якщо сайт в підпапці
-$basePath = dirname($_SERVER['SCRIPT_NAME']);
-if ($basePath !== '/') {
+// !!! Виправлення: базовий шлях обробляється коректно
+$scriptName = $_SERVER['SCRIPT_NAME']; // /project/index.php
+$basePath = rtrim(dirname($scriptName), '/'); // /project
+
+if ($basePath && strpos($path, $basePath) === 0) {
     $path = substr($path, strlen($basePath));
 }
 
-// Маршрути
+// Якщо порожній шлях — це домашня сторінка
+if ($path === '' || $path === false) {
+    $path = '/';
+}
+
+// Вивід для дебагу (можна прибрати)
+echo "<pre>Request URI: $requestUri\nPath: $path\nBase path: $basePath</pre>";
+
+// Роутер
 switch ($path) {
     case '/':
     case '/home':
-        $controller = new HomeController();
-        $controller->index();
+        try {
+            $controller = new HomeController();
+            $controller->index();
+        } catch (Throwable $e) {
+            echo "Помилка в HomeController@index: " . $e->getMessage();
+        }
         break;
 
     case '/contact':
-        $controller = new HomeController();
-        $controller->contact();
+        try {
+            $controller = new HomeController();
+            $controller->contact();
+        } catch (Throwable $e) {
+            echo "Помилка в HomeController@contact: " . $e->getMessage();
+        }
         break;
 
     case '/login':
-        $controller = new AuthController();
-        $controller->login();
+        try {
+            $controller = new AuthController();
+            $controller->login();
+        } catch (Throwable $e) {
+            echo "Помилка в AuthController@login: " . $e->getMessage();
+        }
         break;
 
     case '/register':
-        $controller = new AuthController();
-        $controller->register();
+        try {
+            $controller = new AuthController();
+            $controller->register();
+        } catch (Throwable $e) {
+            echo "Помилка в AuthController@register: " . $e->getMessage();
+        }
         break;
 
     case '/calculator':
-        // Перевіряємо чи користувач авторизований
         if (!isset($_SESSION['user_id'])) {
             header('Location: /login?redirect=calculator');
             exit;
         }
-        $controller = new CalculatorController();
-        $controller->index();
+        try {
+            $controller = new CalculatorController();
+            $controller->index();
+        } catch (Throwable $e) {
+            echo "Помилка в CalculatorController@index: " . $e->getMessage();
+        }
         break;
 
     case '/admin':
@@ -69,14 +106,20 @@ switch ($path) {
             header('Location: /login');
             exit;
         }
-        $controller = new AdminController();
-        $controller->dashboard();
+        try {
+            $controller = new AdminController();
+            $controller->dashboard();
+        } catch (Throwable $e) {
+            echo "Помилка в AdminController@dashboard: " . $e->getMessage();
+        }
         break;
 
     default:
-        // 404 сторінка
         http_response_code(404);
-        include 'view/errors/404.php';
+        if (file_exists('view/errors/404.php')) {
+            include 'view/errors/404.php';
+        } else {
+            echo "<h1>404 - Сторінку не знайдено</h1>";
+        }
         break;
 }
-?>

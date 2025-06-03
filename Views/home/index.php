@@ -1,3 +1,11 @@
+<?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+$isLoggedIn = isset($_SESSION['user']) && $_SESSION['user']['authenticated'] === true;
+?>
+
 <!DOCTYPE html>
 <html lang="uk">
 <head>
@@ -8,6 +16,7 @@
     <link rel="stylesheet" href="UI/css/index.css">
 </head>
 <body>
+
 <!-- Navigation -->
 <nav class="navbar" id="navbar">
     <div class="nav-container">
@@ -18,7 +27,13 @@
             <li><a href="#portfolio">Портфоліо</a></li>
             <li><a href="#about">Про нас</a></li>
             <li><a href="#contact">Контакти</a></li>
+            <?php if ($isLoggedIn): ?>
+                <li><a href="#" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Вийти</a></li>
+            <?php else: ?>
+                <li><a href="#" class="login-btn" onclick="openAuthModal('navbar')"><i class="fas fa-user"></i> Увійти</a></li>
+            <?php endif; ?>
         </ul>
+
     </div>
 </nav>
 
@@ -33,15 +48,23 @@
     <div class="hero-content">
         <h1>Професійні будівельні та ремонтні послуги</h1>
         <p>Перетворюємо ваші мрії про ідеальний дім на реальність з гарантією якості та в строк</p>
-        <div class="cta-buttons">
-            <button class="btn btn-primary" onclick="openModal()">
-                <i class="fas fa-phone"></i>
-                Зв'язатись з менеджером
-            </button>
-            <a href="#calculator" class="btn btn-secondary">
-                <i class="fas fa-calculator"></i>
-                Розрахувати вартість
-            </a>
+
+        <div class="hero-features">
+            <div class="hero-feature">
+                <i class="fas fa-award"></i>
+                <h3>Гарантія якості</h3>
+                <p>Всі роботи виконуються з гарантією від 2 років</p>
+            </div>
+            <div class="hero-feature">
+                <i class="fas fa-clock"></i>
+                <h3>Дотримання термінів</h3>
+                <p>Завершуємо проекти точно в обумовлений час</p>
+            </div>
+            <div class="hero-feature">
+                <i class="fas fa-users"></i>
+                <h3>Досвідчена команда</h3>
+                <p>8 років досвіду та 200+ задоволених клієнтів</p>
+            </div>
         </div>
     </div>
 </section>
@@ -165,18 +188,19 @@
             <div class="cta-buttons">
                 <button class="btn btn-primary" onclick="openModal()">
                     <i class="fas fa-phone"></i>
-                    Зв'язатись зараз
+                    Зв'язатись з менеджером
                 </button>
-                <a href="#calculator" class="btn btn-secondary">
+                <button id="calculateBtn" class="btn btn-secondary">
                     <i class="fas fa-calculator"></i>
-                    Калькулятор вартості
-                </a>
+                    Розрахувати вартість
+                </button>
+
             </div>
         </div>
     </div>
 </section>
 
-<!-- Contact Modal -->
+<!-- Звязатись з менеджером -->
 <div id="contactModal" class="modal">
     <div class="modal-content">
         <span class="close" onclick="closeModal()">&times;</span>
@@ -205,6 +229,66 @@
         </form>
     </div>
 </div>
+<!-- Вікно входу -->
+<div id="loginModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeAuthModal()">&times;</span>
+        <h2>Вхід в систему</h2>
+        <form id="loginFormElement">
+            <div class="form-group">
+                <label for="loginEmail">Email *</label>
+                <input type="email" id="loginEmail" name="email" required>
+            </div>
+            <div class="form-group">
+                <label for="loginPassword">Пароль *</label>
+                <input type="password" id="loginPassword" name="password" required>
+            </div>
+            <button type="submit">Увійти</button>
+        </form>
+        <p class="switch-link">Немає акаунту? <a href="#" onclick="switchToRegister()">Зареєструватися</a></p>
+        <div id="loginErrorMsg" class="error-message" style="display: none;"></div>
+
+    </div>
+</div>
+<!-- Вікно реєстрації -->
+<div id="registerModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeRegisterModal()">&times;</span>
+        <h2>Реєстрація</h2>
+        <form id="registerFormElement">
+            <div id="registerErrorMsg" class="error-message" style="display:none;"></div>
+
+            <div class="form-group">
+                <label for="registerFirstName">Ім’я *</label>
+                <input type="text" id="registerFirstName" name="first_name" required>
+            </div>
+            <div class="form-group">
+                <label for="registerLastName">Прізвище *</label>
+                <input type="text" id="registerLastName" name="last_name" required>
+            </div>
+            <div class="form-group">
+                <label for="registerEmail">Email *</label>
+                <input type="email" id="registerEmail" name="email" required>
+            </div>
+            <div class="form-group">
+                <label for="registerPhone">Телефон</label>
+                <input type="tel" id="registerPhone" name="phone">
+            </div>
+            <div class="form-group">
+                <label for="registerPassword">Пароль *</label>
+                <input type="password" id="registerPassword" name="password" required>
+            </div>
+            <button type="submit">Зареєструватися</button>
+            <div id="registerErrorMsg" class="error-message" style="display: none;"></div>
+
+        </form>
+        <p class="switch-link"><a href="#" onclick="switchToLogin()">← Повернутися до входу</a></p>
+    </div>
+</div>
+
+
+<script src="UI/js/index.js"></script>
 
 </body>
+
 </html>
