@@ -59,8 +59,6 @@ class CalculatorApp {
     goBack() {
         // Простіший спосіб повернення назад
         window.history.back();
-
-
     }
 
     setupInputAnimations() {
@@ -181,9 +179,15 @@ class CalculatorApp {
             const data = await response.json();
 
             if (data.success) {
-                // Simulate loading time for better UX
+                // Переходимо на сторінку вибору послуг замість materials
+                const roomTypeId = formData.get('room_type_id');
+                const wallArea = formData.get('wall_area');
+                const roomArea = formData.get('room_area');
+
+                const redirectUrl = `${this.basePath}/calculator/services-selection?room_type_id=${encodeURIComponent(roomTypeId)}&wall_area=${encodeURIComponent(wallArea)}&room_area=${encodeURIComponent(roomArea)}`;
+
                 setTimeout(() => {
-                    window.location.href = data.redirect;
+                    window.location.href = redirectUrl;
                 }, 1500);
             } else {
                 this.showError(data.error || 'Помилка створення проекту');
@@ -426,9 +430,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Add ripple effects to buttons
     app.addRippleEffect();
-
 });
 
+// Обробник для форми проекту (спрощений)
+document.addEventListener('DOMContentLoaded', () => {
+    const projectForm = document.getElementById("project-form");
+    if (!projectForm) return;
+
+    projectForm.addEventListener("submit", function (e) {
+        e.preventDefault();
+
+        const roomTypeId = document.getElementById("room-type").value;
+        const wallArea = document.getElementById("wall-area").value;
+        const roomArea = document.getElementById("room-area").value;
+
+        if (!roomTypeId || wallArea <= 0 || roomArea <= 0) {
+            // Показати модалку з помилкою
+            const errorMessage = document.getElementById("error-message");
+            const errorModal = document.getElementById("error-modal");
+
+            if (errorMessage && errorModal) {
+                errorMessage.textContent = "Будь ласка, заповніть усі поля коректно.";
+                errorModal.style.display = "block";
+            }
+            return;
+        }
+
+        // Перехід на наступну сторінку з параметрами
+        const url = `/BuildMaster/calculator/services-selection?room_type_id=${encodeURIComponent(roomTypeId)}&wall_area=${encodeURIComponent(wallArea)}&room_area=${encodeURIComponent(roomArea)}`;
+        window.location.href = url;
+    });
+});
+
+// CSS для ripple ефекту
 const rippleCSS = `
     .primary-btn, .secondary-btn {
         position: relative;

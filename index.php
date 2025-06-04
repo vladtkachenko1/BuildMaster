@@ -6,9 +6,11 @@ if (session_status() === PHP_SESSION_NONE) {
 // Підключення файлів із правильними шляхами:
 require_once __DIR__ . '/database/Database.php';
 require_once __DIR__ . '/Controllers/CalculatorController.php';
+require_once __DIR__ . '/Controllers/ServiceCalculatorController.php';
 
-// Імпорт неймспейсу контролера, якщо він у файлі є
+// Імпорт неймспейсів контролерів
 use BuildMaster\Controllers\CalculatorController;
+use BuildMaster\Controllers\ServiceCalculatorController;
 
 $dbInstance = Database::getInstance();
 $database = $dbInstance->getConnection();
@@ -47,9 +49,6 @@ if ($path === '' || $path === false) {
     $path = '/';
 }
 
-// Видалити debug вивід для продакшн
-// echo "<pre>Request URI: $requestUri\nPath: $path\nBase path: $basePath</pre>";
-
 // Роутер
 switch ($path) {
     case '/':
@@ -69,8 +68,8 @@ switch ($path) {
     case '/Calculator':
     case '/calculator':
         try {
-            // Показати головну сторінку калькулятора
-            include __DIR__ . '/Views/calculator/calculator.php';
+            $controller = new CalculatorController($database);
+            $controller->index();
         } catch (Throwable $e) {
             echo "Помилка завантаження калькулятора: " . $e->getMessage();
         }
@@ -79,8 +78,8 @@ switch ($path) {
     case '/Calculator/project-form':
     case '/calculator/project-form':
         try {
-            // Показати форму створення проекту
-            include __DIR__ . '/Views/calculator/project-form.php';
+            $controller = new CalculatorController($database);
+            $controller->getProjectForm();
         } catch (Throwable $e) {
             echo "Помилка завантаження форми проекту: " . $e->getMessage();
         }
@@ -96,6 +95,15 @@ switch ($path) {
         }
         break;
 
+    case '/calculator/services-selection':
+        try {
+            $controller = new CalculatorController($database);
+            $controller->servicesSelection();
+        } catch (Throwable $e) {
+            echo "Помилка завантаження services-selection: " . $e->getMessage();
+        }
+        break;
+
     case '/calculator/create':
         try {
             $controller = new CalculatorController($database);
@@ -103,6 +111,37 @@ switch ($path) {
         } catch (Throwable $e) {
             header('Content-Type: application/json');
             echo json_encode(['success' => false, 'error' => 'Помилка: ' . $e->getMessage()]);
+        }
+        break;
+
+    // API маршрути для послуг
+    case '/api/services':
+        try {
+            $controller = new CalculatorController($database);
+            $controller->getServicesJson();
+        } catch (Throwable $e) {
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Помилка завантаження послуг: ' . $e->getMessage()]);
+        }
+        break;
+
+    case '/api/calculate':
+        try {
+            $controller = new CalculatorController($database);
+            $controller->calculateJson();
+        } catch (Throwable $e) {
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Помилка розрахунку: ' . $e->getMessage()]);
+        }
+        break;
+
+    // Маршрут для результатів
+    case '/calculator/result':
+        try {
+            $controller = new CalculatorController($database);
+            $controller->result();
+        } catch (Throwable $e) {
+            echo "Помилка: " . $e->getMessage();
         }
         break;
 

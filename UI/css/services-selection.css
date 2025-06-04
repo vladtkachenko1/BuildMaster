@@ -1,0 +1,404 @@
+/* Services Selection Styles */
+
+.services-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.services-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 30px;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.project-info {
+    display: flex;
+    gap: 30px;
+}
+
+.info-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #fff;
+    font-size: 14px;
+}
+
+.info-item i {
+    color: #00d4ff;
+}
+
+.services-content {
+    display: grid;
+    grid-template-columns: 1fr 350px;
+    gap: 30px;
+    align-items: start;
+}
+
+.services-list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.loading-spinner {
+    text-align: center;
+    padding: 60px 20px;
+    color: #fff;
+}
+
+.loading-spinner i {
+    font-size: 48px;
+    color: #00d4ff;
+    margin-bottom: 20px;
+}
+
+/* Service Block Styles */
+.service-block {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.service-block:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 30px rgba(0, 212, 255, 0.2);
+}
+
+.service-block-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.05);
+    transition: background 0.3s ease;
+}
+
+.service-block-header:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.block-info h3 {
+    color: #fff;
+    margin: 0 0 8px 0;
+    font-size: 18px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.block-info h3 i {
+    color: #00d4ff;
+    font-size: 16px;
+}
+
+.block-description {
+    color: rgba(255, 255, 255, 0.7);
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.toggle-btn {
+    background: none;
+    border: none;
+    color: #00d4ff;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.toggle-btn:hover {
+    background: rgba(0, 212, 255, 0.1);
+    transform: scale(1.1);
+}
+
+.toggle-btn i {
+    transition: transform 0.3s ease;
+}
+
+.service-block.expanded .toggle-btn i {
+    transform: rotate(180deg);
+}
+
+.service-block-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.service-block.expanded .service-block-content {
+    max-height: 1000px;
+}
+
+.services-grid {
+    padding: 0 20px 20px;
+    display: grid;
+    gap: 12px;
+}
+
+/* Service Item Styles */
+.service-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.service-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: #00d4ff;
+    transform: translateX(4px);
+}
+
+.service-item.selected {
+    background: rgba(0, 212, 255, 0.15);
+    border-color: #00d4ff;
+}
+
+.service-checkbox {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.service-check {
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: transparent;
+}
+
+.service-check:checked {
+    background: #00d4ff;
+    border-color: #00d4ff;
+}
+
+.checkmark {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #fff;
+    font-size: 12px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.checkmark::after {
+    content: '✓';
+}
+
+.service-check:checked + .checkmark {
+    opacity: 1;
+}
+
+.service-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.service-name {
+    color: #fff;
+    margin: 0 0 8px 0;
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1.3;
+}
+
+.service-description {
+    color: rgba(255, 255, 255, 0.7);
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.service-price {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.price-value {
+    color: #00d4ff;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.price-unit {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 14px;
+}
+
+/* Calculation Sidebar */
+.calculation-sidebar {
+    position: sticky;
+    top: 20px;
+}
+
+.calculation-card {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 24px;
+}
+
+.calculation-card h3 {
+    color: #fff;
+    margin: 0 0 20px 0;
+    font-size: 18px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.calculation-card h3 i {
+    color: #00d4ff;
+}
+
+.calculation-details {
+    margin-bottom: 24px;
+}
+
+.selected-services {
+    margin-bottom: 20px;
+}
+
+.no-services {
+    color: rgba(255, 255, 255, 0.6);
+    text-align: center;
+    padding: 20px;
+    font-style: italic;
+    margin: 0;
+}
+
+.selected-service {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.selected-service:last-child {
+    border-bottom: none;
+}
+
+.service-title {
+    color: #fff;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.service-cost {
+    color: #00d4ff;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.calculation-total {
+    padding-top: 20px;
+    border-top: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #fff;
+    font-size: 18px;
+}
+
+.total-row strong {
+    color: #00d4ff;
+    font-size: 24px;
+    font-weight: 700;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+    .services-content {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+
+    .calculation-sidebar {
+        order: -1;
+        position: static;
+    }
+}
+
+@media (max-width: 768px) {
+    .services-header {
+        flex-direction: column;
+        gap: 20px;
+        align-items: stretch;
+    }
+
+    .project-info {
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 20px;
+    }
+
+    .services-container {
+        padding: 10px;
+    }
+
+    .service-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .service-checkbox {
+        align-self: flex-start;
+    }
+}
+
+/* Animation для появлення блоків */
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.service-block {
+    animation: slideInUp 0.5s ease forwards;
+}
+
+.service-block:nth-child(1) { animation-delay: 0.1s; }
+.service-block:nth-child(2) { animation-delay: 0.2s; }
+.service-block:nth-child(3) { animation-delay: 0.3s; }
+.service-block:nth-child(4) { animation-delay: 0.4s; }
+.service-block:nth-child(5) { animation-delay: 0.5s; }
