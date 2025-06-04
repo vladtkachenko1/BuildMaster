@@ -8,7 +8,6 @@ require_once __DIR__ . '/database/Database.php';
 require_once __DIR__ . '/Controllers/CalculatorController.php';
 require_once __DIR__ . '/Controllers/ServiceCalculatorController.php';
 
-// Імпорт неймспейсів контролерів
 use BuildMaster\Controllers\CalculatorController;
 use BuildMaster\Controllers\ServiceCalculatorController;
 
@@ -140,16 +139,6 @@ switch ($path) {
         try {
             $controller = new CalculatorController($database);
             $controller->result();
-        } catch (Throwable $e) {
-            echo "Помилка: " . $e->getMessage();
-        }
-        break;
-
-    case (preg_match('#^/calculator/materials/([\w-]+)$#', $path, $matches) ? true : false):
-        try {
-            $slug = $matches[1];
-            $controller = new CalculatorController($database);
-            $controller->materials($slug);
         } catch (Throwable $e) {
             echo "Помилка: " . $e->getMessage();
         }
