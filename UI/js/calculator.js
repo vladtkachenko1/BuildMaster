@@ -4,7 +4,7 @@ class CalculatorApp {
     constructor() {
         this.currentScreen = 'welcome-screen';
         this.roomTypes = [];
-        this.basePath = '/BuildMaster'; // Додаємо базовий шлях
+        this.basePath = '/BuildMaster';
         this.init();
     }
 

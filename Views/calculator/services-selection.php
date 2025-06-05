@@ -16,8 +16,9 @@ if (!$roomTypeId || $wallArea <= 0 || $roomArea <= 0) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Вибір послуг - BuildMaster</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/BuildMaster/UI/css/calculator.css">
     <link rel="stylesheet" href="/BuildMaster/UI/css/services-selection.css">
+    <link rel="stylesheet" href="/BuildMaster/UI/css/calculator.css">
+
 </head>
 <body>
 <div class="calculator-container">

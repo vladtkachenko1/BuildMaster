@@ -1,7 +1,7 @@
-/* Стилі для нової структури вибору послуг */
+/* services-selection.css */
 
 .services-container {
-    max-width: 800px; /* Залишаємо максимальну ширину */
+    max-width: 800px;
     margin: 0 auto;
     padding: 2rem;
     display: flex;
