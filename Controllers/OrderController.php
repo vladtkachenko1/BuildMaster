@@ -1,4 +1,5 @@
 <?php
+
 namespace BuildMaster\Controllers;
 
 use \PDO;
@@ -11,6 +12,7 @@ class OrderController
     {
         $this->db = $database;
     }
+
     // Додати цей метод в OrderController:
 
     public function createOrderForNewRoom()
@@ -73,6 +75,7 @@ class OrderController
             echo json_encode(['error' => 'Помилка створення замовлення']);
         }
     }
+
     public function createEmptyOrder()
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -120,6 +123,7 @@ class OrderController
             echo json_encode(['error' => 'Помилка створення замовлення']);
         }
     }
+
     public function updateRoomWithServices()
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -319,6 +323,7 @@ class OrderController
             echo json_encode(['error' => 'Помилка завершення замовлення: ' . $e->getMessage()]);
         }
     }
+
     // Допоміжні методи
     private function getRoomTypes()
     {
@@ -371,46 +376,60 @@ class OrderController
 
             // Отримуємо кімнати замовлення з послугами
             $stmt = $this->db->prepare("
-                SELECT 
-                    or_rooms.*,
-                    rt.name as room_type_name,
-                    COALESCE(SUM(ors.total_price), 0) as room_total_cost,
-                    COUNT(ors.id) as services_count
-                FROM order_rooms or_rooms
-                LEFT JOIN room_types rt ON or_rooms.room_type_id = rt.id
-                LEFT JOIN order_room_services ors ON or_rooms.id = ors.order_room_id AND ors.is_selected = 1
-                WHERE or_rooms.order_id = ?
-                GROUP BY or_rooms.id
-                ORDER BY or_rooms.created_at
-            ");
+            SELECT 
+                or_rooms.*,
+                rt.name as room_type_name,
+                COALESCE(SUM(ors.total_price), 0) as room_total_cost,
+                COUNT(ors.id) as services_count
+            FROM order_rooms or_rooms
+            LEFT JOIN room_types rt ON or_rooms.room_type_id = rt.id
+            LEFT JOIN order_room_services ors ON or_rooms.id = ors.order_room_id AND ors.is_selected = 1
+            WHERE or_rooms.order_id = ?
+            GROUP BY or_rooms.id
+            ORDER BY or_rooms.created_at
+        ");
             $stmt->execute([$orderId]);
             $orderRooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             // Отримуємо детальні послуги для кожної кімнати
             foreach ($orderRooms as &$room) {
                 $stmt = $this->db->prepare("
-                    SELECT ors.*, s.name as service_name, s.description 
-                    FROM order_room_services ors
-                    JOIN services s ON ors.service_id = s.id
-                    WHERE ors.order_room_id = ? AND ors.is_selected = 1
-                    ORDER BY s.name
-                ");
+                SELECT ors.*, s.name as service_name, s.description 
+                FROM order_room_services ors
+                JOIN services s ON ors.service_id = s.id
+                WHERE ors.order_room_id = ? AND ors.is_selected = 1
+                ORDER BY s.name
+            ");
                 $stmt->execute([$room['id']]);
                 $room['services'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                // Додаємо відсутні поля для уникнення помилок
+                if (!isset($room['room_area'])) {
+                    $room['room_area'] = $room['floor_area'] ?? 0;
+                }
+
+                // Додаємо поле total_cost як алиас для room_total_cost
+                $room['total_cost'] = $room['room_total_cost'];
             }
 
             $totalAmount = $order['total_amount'];
             $roomTypes = $this->getRoomTypes();
 
+            // Ініціалізуємо змінні для сесії, якщо вони не існують
+            $selected_services = $_SESSION['selected_services'] ?? [];
+            $room_area = $_SESSION['room_area'] ?? 0;
+
             error_log("Showing order rooms - Order ID: {$orderId}, Rooms count: " . count($orderRooms) . ", Total: {$totalAmount}");
 
-            // Передаємо дані у view
+            // Передаємо дані у view з усіма необхідними змінними
             $viewData = [
                 'order' => $order,
                 'orderRooms' => $orderRooms,
                 'roomTypes' => $roomTypes,
                 'totalAmount' => $totalAmount,
-                'orderId' => $orderId
+                'orderId' => $orderId,
+                'selected_services' => $selected_services,
+                'room_area' => $room_area
             ];
 
             extract($viewData);
@@ -486,6 +505,7 @@ class OrderController
 
         error_log("Updated order total amount: " . $totalAmount);
     }
+
     private function getQuantityByAreaType($areaType, $wallArea, $floorArea)
     {
         switch ($areaType) {

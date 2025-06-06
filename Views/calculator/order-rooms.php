@@ -4,7 +4,7 @@ $pageTitle = 'Ваше замовлення - BuildMaster';
 if (!isset($totalAmount) && isset($orderRooms)) {
     $totalAmount = 0;
     foreach ($orderRooms as $room) {
-        $totalAmount += (float)($room['total_cost'] ?? 0);
+        $totalAmount += (float)($room['room_total_cost'] ?? 0);
     }
     error_log("Calculated totalAmount in view: " . $totalAmount);
 }
@@ -60,20 +60,20 @@ if (!isset($totalAmount) && isset($orderRooms)) {
                         </div>
                     <?php else: ?>
                         <?php foreach ($orderRooms as $index => $room): ?>
-                            <div class="room-card" data-room-id="<?= htmlspecialchars($room['id']) ?>">
+                            <div class="room-card" data-room-id="<?= htmlspecialchars($room['id'] ?? '') ?>">
                                 <div class="room-header">
                                     <div class="room-info">
-                                        <h3 class="room-name"><?= htmlspecialchars($room['room_name']) ?></h3>
+                                        <h3 class="room-name"><?= htmlspecialchars($room['room_name'] ?? 'Без назви') ?></h3>
                                         <div class="room-details">
-                                            <span><i class="fas fa-vector-square"></i> Стіни: <?= htmlspecialchars($room['wall_area']) ?> м²</span>
-                                            <span><i class="fas fa-expand-arrows-alt"></i> Підлога: <?= htmlspecialchars($room['room_area']) ?> м²</span>
+                                            <span><i class="fas fa-vector-square"></i> Стіни: <?= htmlspecialchars($room['wall_area'] ?? '0') ?> м²</span>
+                                            <span><i class="fas fa-expand-arrows-alt"></i> Підлога: <?= htmlspecialchars($room['floor_area'] ?? '0') ?> м²</span>
                                         </div>
                                     </div>
                                     <div class="room-actions">
-                                        <button class="edit-room-btn" data-room-id="<?= htmlspecialchars($room['id']) ?>" title="Редагувати кімнату">
+                                        <button class="edit-room-btn" data-room-id="<?= htmlspecialchars($room['id'] ?? '') ?>" title="Редагувати кімнату">
                                             <i class="fas fa-edit"></i>
                                         </button>
-                                        <button class="remove-room-btn" data-room-id="<?= htmlspecialchars($room['id']) ?>" title="Видалити кімнату">
+                                        <button class="remove-room-btn" data-room-id="<?= htmlspecialchars($room['id'] ?? '') ?>" title="Видалити кімнату">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                     </div>
@@ -82,33 +82,24 @@ if (!isset($totalAmount) && isset($orderRooms)) {
                                 <div class="room-services">
                                     <h4>Вибрані послуги:</h4>
                                     <div class="services-list">
-                                        <?php foreach ($room['selected_services'] as $service): ?>
-                                            <?php
-                                            $area = 0;
-                                            switch ($service['area_type']) {
-                                                case 'walls':
-                                                    $area = $room['wall_area'];
-                                                    break;
-                                                case 'floor':
-                                                case 'ceiling':
-                                                    $area = $room['room_area'];
-                                                    break;
-                                            }
-                                            $serviceCost = $service['price_per_sqm'] * $area;
-                                            ?>
-                                            <div class="service-item">
-                                                <span class="service-name"><?= htmlspecialchars($service['name']) ?></span>
-                                                <div class="service-details">
-                                                    <span class="service-area"><?= number_format($area, 2) ?> м² × <?= number_format($service['price_per_sqm'], 2) ?> ₴</span>
-                                                    <span class="service-cost"><?= number_format($serviceCost, 2) ?> ₴</span>
+                                        <?php if (!empty($room['services']) && is_array($room['services'])): ?>
+                                            <?php foreach ($room['services'] as $service): ?>
+                                                <div class="service-item">
+                                                    <span class="service-name"><?= htmlspecialchars($service['service_name'] ?? 'Невідома послуга') ?></span>
+                                                    <div class="service-details">
+                                                        <span class="service-area"><?= number_format($service['quantity'] ?? 0, 2) ?> м² × <?= number_format($service['unit_price'] ?? 0, 2) ?> ₴</span>
+                                                        <span class="service-cost"><?= number_format($service['total_price'] ?? 0, 2) ?> ₴</span>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        <?php endforeach; ?>
+                                            <?php endforeach; ?>
+                                        <?php else: ?>
+                                            <p class="no-services">Послуги не вибрані</p>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
 
                                 <div class="room-total">
-                                    <strong>Вартість ремонту: <?= number_format($room['total_cost'], 2) ?> ₴</strong>
+                                    <strong>Вартість ремонту: <?= number_format($room['room_total_cost'] ?? 0, 2) ?> ₴</strong>
                                 </div>
                             </div>
                         <?php endforeach; ?>
@@ -132,7 +123,7 @@ if (!isset($totalAmount) && isset($orderRooms)) {
                             </div>
                             <div class="summary-row total">
                                 <span>Загальна вартість:</span>
-                                <strong><?= number_format($totalAmount, 2) ?> ₴</strong>
+                                <strong><?= number_format($totalAmount ?? 0, 2) ?> ₴</strong>
                             </div>
                         </div>
 
@@ -184,15 +175,17 @@ if (!isset($totalAmount) && isset($orderRooms)) {
                     <div class="order-final-summary">
                         <h4>Підсумок замовлення:</h4>
                         <div class="summary-items">
-                            <?php foreach ($orderRooms as $room): ?>
-                                <div class="summary-item">
-                                    <span><?= htmlspecialchars($room['room_name']) ?></span>
-                                    <span><?= number_format($room['total_cost'], 2) ?> ₴</span>
-                                </div>
-                            <?php endforeach; ?>
+                            <?php if (!empty($orderRooms)): ?>
+                                <?php foreach ($orderRooms as $room): ?>
+                                    <div class="summary-item">
+                                        <span><?= htmlspecialchars($room['room_name'] ?? 'Без назви') ?></span>
+                                        <span><?= number_format($room['room_total_cost'] ?? 0, 2) ?> ₴</span>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
                         </div>
                         <div class="final-total">
-                            <span>Загальна вартість: <strong><?= number_format($totalAmount, 2) ?> ₴</strong></span>
+                            <span>Загальна вартість: <strong><?= number_format($totalAmount ?? 0, 2) ?> ₴</strong></span>
                         </div>
                     </div>
                 </div>
