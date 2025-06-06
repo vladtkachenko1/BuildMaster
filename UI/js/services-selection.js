@@ -121,10 +121,11 @@ class ServicesSelection {
                     areaSize = window.calculatorData.wallArea;
                     break;
                 case 'ceiling':
-                    areaIcon = 'fas fa-square';
+                    areaIcon = 'fas fa-bars'; // 🔄 інша іконка для наочності
                     areaSize = window.calculatorData.roomArea;
                     break;
             }
+
 
             // Створюємо заголовок області з кнопкою розгортання
             const areaHeader = document.createElement('div');
@@ -373,6 +374,7 @@ class ServicesSelection {
         try {
             // Виправлений URL
             const response = await fetch('/BuildMaster/api/calculate', {
+
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -399,8 +401,7 @@ class ServicesSelection {
             }));
 
             // Переходимо на сторінку результатів
-            window.location.href = '/BuildMaster/calculator/result';
-
+            window.location.href = '/BuildMaster/calculator/order-rooms';
         } catch (error) {
             console.error('Error calculating:', error);
             this.showError('Помилка розрахунку. Спробуйте пізніше.');

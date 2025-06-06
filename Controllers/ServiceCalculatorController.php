@@ -11,9 +11,7 @@ class ServiceCalculatorController
         $this->database = $database;
     }
 
-    /**
-     * Отримує всі блоки послуг для конкретного типу кімнати
-     */
+
     public function getServiceBlocksByRoomType($roomTypeId)
     {
         try {

@@ -66,7 +66,6 @@ if (!$roomTypeId || $wallArea <= 0 || $roomArea <= 0) {
 
             <!-- Services Selection -->
             <div class="services-content">
-                <!-- Список послуг (ширший, по центру) -->
                 <div class="services-list" id="services-list">
                     <div class="loading-spinner">
                         <i class="fas fa-spinner fa-spin"></i>
@@ -74,7 +73,6 @@ if (!$roomTypeId || $wallArea <= 0 || $roomArea <= 0) {
                     </div>
                 </div>
 
-                <!-- Sidebar з розрахунком (знизу з такою ж шириною) -->
                 <div class="calculation-sidebar">
                     <div class="calculation-card">
                         <h3>

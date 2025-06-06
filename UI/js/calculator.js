@@ -26,11 +26,12 @@ class CalculatorApp {
             });
         }
 
-        document.addEventListener("click", (e) => {
-            if (e.target && e.target.id === "back-btn") {
-                this.goBack();
-            }
+
+        document.getElementById("back-btn").addEventListener("click", function (e) {
+            e.preventDefault(); // щоб не відбулося небажаного сабміту
+            window.location.href = "http://localhost/BuildMaster/Calculator/";
         });
+
 
         const closeErrorBtn = document.getElementById('close-error-btn');
         if (closeErrorBtn) {

@@ -7,9 +7,11 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once __DIR__ . '/database/Database.php';
 require_once __DIR__ . '/Controllers/CalculatorController.php';
 require_once __DIR__ . '/Controllers/ServiceCalculatorController.php';
+require_once __DIR__ . '/Controllers/OrderController.php';
 
 use BuildMaster\Controllers\CalculatorController;
 use BuildMaster\Controllers\ServiceCalculatorController;
+use BuildMaster\Controllers\OrderController;
 
 $dbInstance = Database::getInstance();
 $database = $dbInstance->getConnection();
@@ -113,7 +115,6 @@ switch ($path) {
         }
         break;
 
-    // API маршрути для послуг
     case '/api/services':
         try {
             $controller = new CalculatorController($database);
@@ -141,6 +142,75 @@ switch ($path) {
             $controller->result();
         } catch (Throwable $e) {
             echo "Помилка: " . $e->getMessage();
+        }
+        break;
+
+    // Маршрути для замовлень
+    case '/calculator/order-rooms':
+        try {
+            $controller = new OrderController($database);
+            $controller->showOrderRooms();
+        } catch (Throwable $e) {
+            echo "Помилка завантаження сторінки замовлення: " . $e->getMessage();
+        }
+        break;
+
+    case '/calculator/add-room':
+        try {
+            $controller = new OrderController($database);
+            $controller->addRoomToOrder();
+        } catch (Throwable $e) {
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Помилка додавання кімнати: ' . $e->getMessage()]);
+        }
+        break;
+
+    case '/calculator/edit-room':
+        try {
+            $controller = new OrderController($database);
+            $controller->editRoom();
+        } catch (Throwable $e) {
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Помилка редагування кімнати: ' . $e->getMessage()]);
+        }
+        break;
+
+    case '/calculator/remove-room':
+        try {
+            $controller = new OrderController($database);
+            $controller->removeRoom();
+        } catch (Throwable $e) {
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Помилка видалення кімнати: ' . $e->getMessage()]);
+        }
+        break;
+
+    case '/calculator/complete-order':
+        try {
+            $controller = new OrderController($database);
+            $controller->completeOrder();
+        } catch (Throwable $e) {
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Помилка оформлення замовлення: ' . $e->getMessage()]);
+        }
+        break;
+
+    case '/calculator/order-success':
+        try {
+            $controller = new OrderController($database);
+            $controller->orderSuccess();
+        } catch (Throwable $e) {
+            echo "Помилка: " . $e->getMessage();
+        }
+        break;
+
+    case '/calculator/update-room':
+        try {
+            $controller = new OrderController($database);
+            $controller->updateRoomFromServices();
+        } catch (Throwable $e) {
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Помилка оновлення кімнати: ' . $e->getMessage()]);
         }
         break;
 
