@@ -3,7 +3,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Підключення файлів із правильними шляхами:
+// Підключення файлів
 require_once __DIR__ . '/database/Database.php';
 require_once __DIR__ . '/Controllers/CalculatorController.php';
 require_once __DIR__ . '/Controllers/ServiceCalculatorController.php';
@@ -13,19 +13,17 @@ use BuildMaster\Controllers\CalculatorController;
 use BuildMaster\Controllers\ServiceCalculatorController;
 use BuildMaster\Controllers\OrderController;
 
-$dbInstance = Database::getInstance();
-$database = $dbInstance->getConnection();
-
+// Налаштування
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
+// Підключення бази даних
+$dbInstance = Database::getInstance();
+$database = $dbInstance->getConnection();
+
+// Автозавантажувач класів
 spl_autoload_register(function ($class) {
-    $paths = [
-        'Controllers/',
-        'Models/',
-        'Database/',
-        'Core/'
-    ];
+    $paths = ['Controllers/', 'Models/', 'Database/', 'Core/'];
 
     foreach ($paths as $path) {
         $file = __DIR__ . '/' . $path . $class . '.php';
@@ -36,247 +34,336 @@ spl_autoload_register(function ($class) {
     }
 });
 
+// Обробка URL
 $requestUri = $_SERVER['REQUEST_URI'];
 $path = parse_url($requestUri, PHP_URL_PATH);
-
-$scriptName = $_SERVER['SCRIPT_NAME']; // /BuildMaster/index.php
-$basePath = rtrim(dirname($scriptName), '/'); // /BuildMaster
+$scriptName = $_SERVER['SCRIPT_NAME'];
+$basePath = rtrim(dirname($scriptName), '/');
 
 if ($basePath && strpos($path, $basePath) === 0) {
     $path = substr($path, strlen($basePath));
 }
 
-if ($path === '' || $path === false) {
-    $path = '/';
+$path = $path ?: '/';
+
+/**
+ * Безпечне виконання контролера з обробкою помилок
+ */
+function executeController(callable $callback, string $errorMessage = 'Помилка виконання') {
+    try {
+        return $callback();
+    } catch (Throwable $e) {
+        error_log("Router Error: {$errorMessage} - " . $e->getMessage());
+
+        if (strpos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') !== false ||
+            strpos($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json') !== false) {
+            header('Content-Type: application/json');
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $errorMessage]);
+        } else {
+            echo "<h1>Помилка</h1><p>{$errorMessage}</p>";
+            if (ini_get('display_errors')) {
+                echo "<pre>" . $e->getMessage() . "</pre>";
+            }
+        }
+    }
 }
 
-// Роутер
+// ================================
+// МАРШРУТИЗАЦІЯ
+// ================================
+
 switch ($path) {
+
+    // ================================
+    // ГОЛОВНІ СТОРІНКИ
+    // ================================
+
     case '/':
     case '/home':
-        try {
+        executeController(function() {
             if (class_exists('HomeController')) {
                 $controller = new HomeController();
                 $controller->index();
             } else {
                 echo "HomeController не знайдено";
             }
-        } catch (Throwable $e) {
-            echo "Помилка в HomeController@index: " . $e->getMessage();
-        }
-        break;
-
-    case '/Calculator':
-    case '/calculator':
-        try {
-            $controller = new CalculatorController($database);
-            $controller->index();
-        } catch (Throwable $e) {
-            echo "Помилка завантаження калькулятора: " . $e->getMessage();
-        }
-        break;
-
-    case '/Calculator/project-form':
-    case '/calculator/project-form':
-        try {
-            $controller = new CalculatorController($database);
-            $controller->getProjectForm();
-        } catch (Throwable $e) {
-            echo "Помилка завантаження форми проекту: " . $e->getMessage();
-        }
-        break;
-
-    case '/calculator/room-types':
-        try {
-            $controller = new CalculatorController($database);
-            $controller->getRoomTypes();
-        } catch (Throwable $e) {
-            header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => 'Помилка завантаження типів кімнат: ' . $e->getMessage()]);
-        }
-        break;
-
-    case '/calculator/services-selection':
-        try {
-            $controller = new CalculatorController($database);
-            $controller->servicesSelection();
-        } catch (Throwable $e) {
-            echo "Помилка завантаження services-selection: " . $e->getMessage();
-        }
-        break;
-
-    case '/calculator/create':
-        try {
-            $controller = new CalculatorController($database);
-            $controller->createProject();
-        } catch (Throwable $e) {
-            header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => 'Помилка: ' . $e->getMessage()]);
-        }
-        break;
-
-    case '/api/services':
-        try {
-            $controller = new CalculatorController($database);
-            $controller->getServicesJson();
-        } catch (Throwable $e) {
-            header('Content-Type: application/json');
-            echo json_encode(['error' => 'Помилка завантаження послуг: ' . $e->getMessage()]);
-        }
-        break;
-
-    case '/api/calculate':
-        try {
-            $controller = new CalculatorController($database);
-            $controller->calculateJson();
-        } catch (Throwable $e) {
-            header('Content-Type: application/json');
-            echo json_encode(['error' => 'Помилка розрахунку: ' . $e->getMessage()]);
-        }
-        break;
-
-    // Маршрут для результатів
-    case '/calculator/result':
-        try {
-            $controller = new CalculatorController($database);
-            $controller->result();
-        } catch (Throwable $e) {
-            echo "Помилка: " . $e->getMessage();
-        }
-        break;
-
-    // Маршрути для замовлень
-    case '/calculator/order-rooms':
-        try {
-            $controller = new OrderController($database);
-            $controller->showOrderRooms();
-        } catch (Throwable $e) {
-            echo "Помилка завантаження сторінки замовлення: " . $e->getMessage();
-        }
-        break;
-
-    case '/calculator/add-room':
-        try {
-            $controller = new OrderController($database);
-            $controller->addRoomToOrder();
-        } catch (Throwable $e) {
-            header('Content-Type: application/json');
-            echo json_encode(['error' => 'Помилка додавання кімнати: ' . $e->getMessage()]);
-        }
-        break;
-
-    case '/calculator/edit-room':
-        try {
-            $controller = new OrderController($database);
-            $controller->editRoom();
-        } catch (Throwable $e) {
-            header('Content-Type: application/json');
-            echo json_encode(['error' => 'Помилка редагування кімнати: ' . $e->getMessage()]);
-        }
-        break;
-
-    case '/calculator/remove-room':
-        try {
-            $controller = new OrderController($database);
-            $controller->removeRoom();
-        } catch (Throwable $e) {
-            header('Content-Type: application/json');
-            echo json_encode(['error' => 'Помилка видалення кімнати: ' . $e->getMessage()]);
-        }
-        break;
-
-    case '/calculator/complete-order':
-        try {
-            $controller = new OrderController($database);
-            $controller->completeOrder();
-        } catch (Throwable $e) {
-            header('Content-Type: application/json');
-            echo json_encode(['error' => 'Помилка оформлення замовлення: ' . $e->getMessage()]);
-        }
-        break;
-
-    case '/calculator/order-success':
-        try {
-            $controller = new OrderController($database);
-            $controller->orderSuccess();
-        } catch (Throwable $e) {
-            echo "Помилка: " . $e->getMessage();
-        }
-        break;
-
-    case '/calculator/update-room':
-        try {
-            $controller = new OrderController($database);
-            $controller->updateRoomFromServices();
-        } catch (Throwable $e) {
-            header('Content-Type: application/json');
-            echo json_encode(['error' => 'Помилка оновлення кімнати: ' . $e->getMessage()]);
-        }
+        }, 'Помилка завантаження головної сторінки');
         break;
 
     case '/contact':
-        try {
+        executeController(function() {
             if (class_exists('HomeController')) {
                 $controller = new HomeController();
                 $controller->contact();
             } else {
                 echo "HomeController не знайдено";
             }
-        } catch (Throwable $e) {
-            echo "Помилка в HomeController@contact: " . $e->getMessage();
-        }
+        }, 'Помилка завантаження сторінки контактів');
         break;
 
+    // ================================
+    // АУТЕНТИФІКАЦІЯ
+    // ================================
+
     case '/login':
-        try {
+        executeController(function() {
             if (class_exists('AuthController')) {
                 $controller = new AuthController();
                 $controller->login();
             } else {
                 echo "AuthController не знайдено";
             }
-        } catch (Throwable $e) {
-            echo "Помилка в AuthController@login: " . $e->getMessage();
-        }
+        }, 'Помилка завантаження сторінки входу');
         break;
 
     case '/register':
-        try {
+        executeController(function() {
             if (class_exists('AuthController')) {
                 $controller = new AuthController();
                 $controller->register();
             } else {
                 echo "AuthController не знайдено";
             }
-        } catch (Throwable $e) {
-            echo "Помилка в AuthController@register: " . $e->getMessage();
-        }
+        }, 'Помилка завантаження сторінки реєстрації');
         break;
+
+    // ================================
+    // АДМІНІСТРАТИВНА ПАНЕЛЬ
+    // ================================
 
     case '/admin':
         if (!isset($_SESSION['user_id']) || !$_SESSION['is_admin']) {
             header('Location: /BuildMaster/login');
             exit;
         }
-        try {
+
+        executeController(function() {
             if (class_exists('AdminController')) {
                 $controller = new AdminController();
                 $controller->dashboard();
             } else {
                 echo "AdminController не знайдено";
             }
-        } catch (Throwable $e) {
-            echo "Помилка в AdminController@dashboard: " . $e->getMessage();
-        }
+        }, 'Помилка завантаження адміністративної панелі');
         break;
+
+    // ================================
+    // КАЛЬКУЛЯТОР - ГОЛОВНІ СТОРІНКИ
+    // ================================
+
+    case '/calculator':
+    case '/Calculator':
+        executeController(function() use ($database) {
+            $controller = new CalculatorController($database);
+            $controller->index();
+        }, 'Помилка завантаження калькулятора');
+        break;
+
+    case '/calculator/project-form':
+    case '/Calculator/project-form':
+        executeController(function() use ($database) {
+            $controller = new CalculatorController($database);
+            $controller->getProjectForm();
+        }, 'Помилка завантаження форми проекту');
+        break;
+
+    case '/calculator/services-selection':
+        executeController(function() use ($database) {
+            $controller = new CalculatorController($database);
+            $controller->servicesSelection();
+        }, 'Помилка завантаження вибору послуг');
+        break;
+
+    // ================================
+    // КАЛЬКУЛЯТОР - API ENDPOINTS
+    // ================================
+
+    case '/calculator/room-types':
+        executeController(function() use ($database) {
+            $controller = new CalculatorController($database);
+            $controller->getRoomTypes();
+        }, 'Помилка завантаження типів кімнат');
+        break;
+
+    case '/calculator/services-json':
+    case '/api/services':
+        executeController(function() use ($database) {
+            $controller = new CalculatorController($database);
+            $controller->getServicesJson();
+        }, 'Помилка завантаження послуг');
+        break;
+
+    case '/calculator/calculate-json':
+    case '/api/calculate':
+        executeController(function() use ($database) {
+            $controller = new CalculatorController($database);
+            $controller->calculateJson();
+        }, 'Помилка розрахунку');
+        break;
+
+    case '/calculator/create':
+    case '/calculator/create-project':
+        executeController(function() use ($database) {
+            $controller = new CalculatorController($database);
+            $controller->createProject();
+        }, 'Помилка створення проекту');
+        break;
+
+    case '/calculator/save-room-services':
+        executeController(function() use ($database) {
+            $controller = new CalculatorController($database);
+            $controller->saveRoomWithServices();
+        }, 'Помилка збереження кімнати з послугами');
+        break;
+
+    case '/calculator/current-rooms':
+        executeController(function() use ($database) {
+            $controller = new CalculatorController($database);
+            $controller->getCurrentOrderRooms();
+        }, 'Помилка завантаження поточних кімнат');
+        break;
+
+    case '/calculator/result':
+        executeController(function() use ($database) {
+            $controller = new CalculatorController($database);
+            $controller->result();
+        }, 'Помилка завантаження результатів');
+        break;
+
+    // ================================
+    // ЗАМОВЛЕННЯ - ГОЛОВНІ СТОРІНКИ
+    // ================================
+
+    case '/calculator/order-rooms':
+    case '/order/rooms':
+        executeController(function() use ($database) {
+            $controller = new OrderController($database);
+            $controller->showOrderRooms();
+        }, 'Помилка завантаження кімнат замовлення');
+        break;
+
+    case '/calculator/order-success':
+    case '/order/success':
+        executeController(function() use ($database) {
+            $controller = new OrderController($database);
+            $controller->orderSuccess();
+        }, 'Помилка завантаження сторінки успіху');
+        break;
+
+    // ================================
+    // ЗАМОВЛЕННЯ - API ENDPOINTS
+    // ================================
+
+    case '/calculator/create-order-for-new-room':
+        executeController(function() use ($database) {
+            $controller = new OrderController($database);
+            $controller->createOrderForNewRoom();
+        }, 'Помилка створення замовлення для нової кімнати');
+        break;
+
+    case '/calculator/create-empty-order':
+    case '/order/create-empty':
+        executeController(function() use ($database) {
+            $controller = new OrderController($database);
+            $controller->createEmptyOrder();
+        }, 'Помилка створення порожнього замовлення');
+        break;
+
+    case '/calculator/update-room-services':
+        executeController(function() use ($database) {
+            $controller = new OrderController($database);
+            $controller->updateRoomWithServices();
+        }, 'Помилка оновлення послуг кімнати');
+        break;
+
+    case '/calculator/complete-order':
+    case '/order/complete':
+        executeController(function() use ($database) {
+            $controller = new OrderController($database);
+            $controller->completeOrder();
+        }, 'Помилка завершення замовлення');
+        break;
+
+    case '/calculator/remove-room':
+    case '/order/remove-room':
+        executeController(function() use ($database) {
+            $controller = new OrderController($database);
+            $controller->removeRoom();
+        }, 'Помилка видалення кімнати');
+        break;
+
+    // ================================
+    // ЗАСТАРІЛІ/АЛЬТЕРНАТИВНІ МАРШРУТИ
+    // ================================
+
+    case '/calculator/create-new-order':
+        // Перенаправляємо на новий endpoint
+        header('Location: /BuildMaster/calculator/create-empty-order');
+        exit;
+        break;
+
+    case '/calculator/add-room':
+        // Цей маршрут може бути перенаправлений або обробленй
+        executeController(function() use ($database) {
+            $controller = new OrderController($database);
+            if (method_exists($controller, 'addRoomToOrder')) {
+                $controller->addRoomToOrder();
+            } else {
+                // Перенаправляємо на форму створення проекту
+                header('Location: /BuildMaster/calculator/project-form');
+                exit;
+            }
+        }, 'Помилка додавання кімнати');
+        break;
+
+    case '/calculator/edit-room':
+        executeController(function() use ($database) {
+            $controller = new OrderController($database);
+            if (method_exists($controller, 'editRoom')) {
+                $controller->editRoom();
+            } else {
+                http_response_code(404);
+                echo json_encode(['error' => 'Метод не реалізовано']);
+            }
+        }, 'Помилка редагування кімнати');
+        break;
+
+    case '/calculator/update-room':
+        // Перенаправляємо на правильний endpoint
+        header('Location: /BuildMaster/calculator/update-room-services');
+        exit;
+        break;
+
+    // ================================
+    // 404 - СТОРІНКУ НЕ ЗНАЙДЕНО
+    // ================================
 
     default:
         http_response_code(404);
+
         if (file_exists(__DIR__ . '/Views/errors/404.php')) {
             include __DIR__ . '/Views/errors/404.php';
         } else {
-            echo "<h1>404 - Сторінку не знайдено</h1>";
-            echo "<p>Запитаний шлях: " . htmlspecialchars($path) . "</p>";
+            echo "
+            <html>
+            <head>
+                <title>404 - Сторінку не знайдено</title>
+                <style>
+                    body { font-family: Arial, sans-serif; margin: 50px; }
+                    h1 { color: #d32f2f; }
+                    .info { background: #f5f5f5; padding: 15px; border-radius: 5px; }
+                </style>
+            </head>
+            <body>
+                <h1>404 - Сторінку не знайдено</h1>
+                <div class='info'>
+                    <p><strong>Запитаний шлях:</strong> " . htmlspecialchars($path) . "</p>
+                    <p><strong>Повний URI:</strong> " . htmlspecialchars($requestUri) . "</p>
+                    <p><a href='/BuildMaster/'>← Повернутися на головну</a></p>
+                </div>
+            </body>
+            </html>";
         }
         break;
 }

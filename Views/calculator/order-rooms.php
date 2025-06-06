@@ -1,5 +1,13 @@
 <?php
 $pageTitle = 'Ваше замовлення - BuildMaster';
+
+if (!isset($totalAmount) && isset($orderRooms)) {
+    $totalAmount = 0;
+    foreach ($orderRooms as $room) {
+        $totalAmount += (float)($room['total_cost'] ?? 0);
+    }
+    error_log("Calculated totalAmount in view: " . $totalAmount);
+}
 ?>
 <!DOCTYPE html>
 <html lang="uk">

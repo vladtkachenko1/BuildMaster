@@ -369,21 +369,26 @@ class ServicesSelection {
             return;
         }
 
-        const serviceIds = Array.from(this.selectedServices).map(service => service.id);
+        // Перетворюємо Set в масив об'єктів
+        const selectedServicesArray = Array.from(this.selectedServices).map(service => ({
+            id: service.id,
+            name: service.name,
+            price: service.price,
+            area_type: service.areaType // Змінюємо на area_type для консистентності з PHP
+        }));
 
         try {
-            // Виправлений URL
-            const response = await fetch('/BuildMaster/api/calculate', {
-
+            const response = await fetch('/BuildMaster/calculator/save-room-services', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    services: serviceIds,
+                    room_type_id: window.calculatorData.roomTypeId,
                     wall_area: window.calculatorData.wallArea,
-                    room_area: window.calculatorData.roomArea,
-                    room_type_id: window.calculatorData.roomTypeId
+                    floor_area: window.calculatorData.roomArea, // Це площа підлоги
+                    room_name: window.calculatorData.roomName || 'Кімната',
+                    selected_services: selectedServicesArray
                 })
             });
 
@@ -393,21 +398,25 @@ class ServicesSelection {
 
             const result = await response.json();
 
-            // Зберігаємо результат в сесії або передаємо на наступну сторінку
+            if (!result.success) {
+                throw new Error(result.error || 'Невідома помилка');
+            }
+
+            // Зберігаємо результат в sessionStorage
             sessionStorage.setItem('calculationResult', JSON.stringify({
                 ...result,
-                selectedServices: Array.from(this.selectedServices),
+                selectedServices: selectedServicesArray,
                 roomTypeId: window.calculatorData.roomTypeId
             }));
 
-            // Переходимо на сторінку результатів
+            // Переходимо на сторінку замовлень
             window.location.href = '/BuildMaster/calculator/order-rooms';
+
         } catch (error) {
-            console.error('Error calculating:', error);
-            this.showError('Помилка розрахунку. Спробуйте пізніше.');
+            console.error('Error saving room with services:', error);
+            this.showError('Помилка збереження: ' + error.message);
         }
     }
-
     showError(message) {
         const modal = document.getElementById('error-modal');
         const errorMessage = document.getElementById('error-message');

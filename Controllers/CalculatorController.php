@@ -1,4 +1,5 @@
 <?php
+// CalculatorController - виправлена версія
 
 namespace BuildMaster\Controllers;
 
@@ -18,6 +19,9 @@ class CalculatorController
     {
         return $this->view('calculator/calculator');
     }
+
+    // ВИДАЛЯЄМО метод createNewOrder - він не потрібен тут
+    // Замовлення буде створюватися в OrderController при додаванні кімнати
 
     public function getRoomTypes()
     {
@@ -45,35 +49,242 @@ class CalculatorController
         return $this->view('calculator/project-form');
     }
 
-    /**
-     * Додаємо відсутній метод servicesSelection
-     */
     public function servicesSelection()
     {
         return $this->view('calculator/services-selection');
     }
 
-    /**
-     * Додаємо відсутній метод createProject
-     */
     public function createProject()
     {
         header('Content-Type: application/json');
 
         try {
-            $input = json_decode(file_get_contents('php://input'), true);
+            $roomTypeId = $_POST['room_type_id'] ?? null;
+            $wallArea = floatval($_POST['wall_area'] ?? 0);
+            $roomArea = floatval($_POST['room_area'] ?? 0);
 
-            if (!$input) {
-                throw new \Exception('Некоректні дані');
+            if (!$roomTypeId || $wallArea <= 0 || $roomArea <= 0) {
+                throw new \Exception('Некоректні дані форми');
             }
 
-            // Зберігаємо дані проекту в сесії
-            $_SESSION['current_project'] = $input;
+            // Перевіряємо чи є активне замовлення, якщо ні - створюємо
+            if (!isset($_SESSION['current_order_id'])) {
+                // Створюємо нове пусте замовлення
+                $stmt = $this->db->prepare("
+                    INSERT INTO orders (status, total_amount, created_at, updated_at) 
+                    VALUES ('draft', 0.00, NOW(), NOW())
+                ");
+                $stmt->execute();
+                $_SESSION['current_order_id'] = $this->db->lastInsertId();
+            }
 
-            echo json_encode(['success' => true, 'message' => 'Проект створено']);
+            // Зберігаємо дані кімнати в сесії для передачі на сторінку вибору послуг
+            $_SESSION['current_room_data'] = [
+                'room_type_id' => $roomTypeId,
+                'wall_area' => $wallArea,
+                'floor_area' => $roomArea
+            ];
+
+            echo json_encode([
+                'success' => true,
+                'message' => 'Дані кімнати збережено',
+                'redirect_url' => '/BuildMaster/calculator/services-selection'
+            ]);
+
         } catch (\Exception $e) {
             http_response_code(500);
-            echo json_encode(['success' => false, 'error' => 'Помилка створення проекту: ' . $e->getMessage()]);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Помилка збереження даних: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    public function saveRoomWithServices()
+    {
+        header('Content-Type: application/json');
+
+        try {
+            $input = json_decode(file_get_contents('php://input'), true);
+            $selectedServices = $input['services'] ?? [];
+            $roomName = $input['room_name'] ?? 'Кімната';
+
+            if (!isset($_SESSION['current_order_id']) || !isset($_SESSION['current_room_data'])) {
+                throw new \Exception('Дані сесії відсутні');
+            }
+
+            $orderId = $_SESSION['current_order_id'];
+            $roomData = $_SESSION['current_room_data'];
+
+            $this->db->beginTransaction();
+
+            // Додаємо кімнату
+            $stmt = $this->db->prepare("
+                INSERT INTO order_rooms (order_id, room_type_id, wall_area, floor_area, room_name, created_at) 
+                VALUES (?, ?, ?, ?, ?, NOW())
+            ");
+            $stmt->execute([
+                $orderId,
+                $roomData['room_type_id'],
+                $roomData['wall_area'],
+                $roomData['floor_area'],
+                $roomName
+            ]);
+
+            $roomId = $this->db->lastInsertId();
+            $totalRoomPrice = 0;
+
+            // Додаємо послуги
+            foreach ($selectedServices as $serviceId) {
+                $stmt = $this->db->prepare("SELECT name, price_per_sqm FROM services WHERE id = ?");
+                $stmt->execute([$serviceId]);
+                $service = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+                if ($service) {
+                    $serviceName = strtolower($service['name']);
+                    $unitPrice = floatval($service['price_per_sqm']);
+
+                    if (strpos($serviceName, 'підлог') !== false ||
+                        strpos($serviceName, 'пол') !== false ||
+                        strpos($serviceName, 'стел') !== false ||
+                        strpos($serviceName, 'потолок') !== false) {
+                        $quantity = $roomData['floor_area'];
+                    } else {
+                        $quantity = $roomData['wall_area'];
+                    }
+
+                    $totalPrice = $unitPrice * $quantity;
+                    $totalRoomPrice += $totalPrice;
+
+                    $stmt = $this->db->prepare("
+                        INSERT INTO order_room_services 
+                        (order_room_id, service_id, quantity, unit_price, total_price, is_selected, created_at) 
+                        VALUES (?, ?, ?, ?, ?, 1, NOW())
+                    ");
+                    $stmt->execute([$roomId, $serviceId, $quantity, $unitPrice, $totalPrice]);
+                }
+            }
+
+            // Оновлюємо загальну суму замовлення
+            $stmt = $this->db->prepare("
+                UPDATE orders 
+                SET total_amount = total_amount + ?, updated_at = NOW() 
+                WHERE id = ?
+            ");
+            $stmt->execute([$totalRoomPrice, $orderId]);
+
+            $this->db->commit();
+
+            // Очищуємо дані кімнати з сесії
+            unset($_SESSION['current_room_data']);
+
+            echo json_encode([
+                'success' => true,
+                'message' => 'Кімнату додано до замовлення',
+                'room_id' => $roomId,
+                'total_price' => $totalRoomPrice,
+                'redirect_url' => '/BuildMaster/calculator/order-rooms'
+            ]);
+
+        } catch (\Exception $e) {
+            $this->db->rollBack();
+            http_response_code(500);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Помилка збереження кімнати: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    public function getCurrentOrderRooms()
+    {
+        header('Content-Type: application/json');
+
+        try {
+            if (!isset($_SESSION['current_order_id'])) {
+                echo json_encode(['rooms' => []]);
+                return;
+            }
+
+            $orderId = $_SESSION['current_order_id'];
+
+            $stmt = $this->db->prepare("
+                SELECT 
+                    or.id,
+                    or.room_name,
+                    or.wall_area,
+                    or.floor_area,
+                    rt.name as room_type_name,
+                    COUNT(ors.id) as services_count,
+                    SUM(ors.total_price) as room_total
+                FROM order_rooms or
+                LEFT JOIN room_types rt ON or.room_type_id = rt.id
+                LEFT JOIN order_room_services ors ON or.id = ors.order_room_id AND ors.is_selected = 1
+                WHERE or.order_id = ?
+                GROUP BY or.id
+                ORDER BY or.created_at DESC
+            ");
+            $stmt->execute([$orderId]);
+            $rooms = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            echo json_encode(['rooms' => $rooms]);
+
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Помилка завантаження кімнат: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    public function getRoomDetails($roomId)
+    {
+        header('Content-Type: application/json');
+
+        try {
+            $stmt = $this->db->prepare("
+                SELECT 
+                    or.*,
+                    rt.name as room_type_name,
+                    rt.id as room_type_id
+                FROM order_rooms or
+                LEFT JOIN room_types rt ON or.room_type_id = rt.id
+                WHERE or.id = ?
+            ");
+            $stmt->execute([$roomId]);
+            $room = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            if (!$room) {
+                throw new \Exception('Кімнату не знайдено');
+            }
+
+            $stmt = $this->db->prepare("
+                SELECT 
+                    ors.*,
+                    s.name as service_name,
+                    s.description as service_description
+                FROM order_room_services ors
+                LEFT JOIN services s ON ors.service_id = s.id
+                WHERE ors.order_room_id = ? AND ors.is_selected = 1
+                ORDER BY s.name
+            ");
+            $stmt->execute([$roomId]);
+            $services = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            $room['services'] = $services;
+
+            echo json_encode([
+                'success' => true,
+                'room' => $room
+            ]);
+
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Помилка завантаження деталей: ' . $e->getMessage()
+            ]);
         }
     }
 
@@ -100,7 +311,6 @@ class CalculatorController
             $stmt->execute([$roomTypeId]);
             $result = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-            // Створюємо фейкові області для підлоги, стін та стелі
             $areas = [
                 [
                     'area_id' => 1,
@@ -124,7 +334,6 @@ class CalculatorController
 
             $groupedByBlock = [];
 
-            // Групуємо по блоках
             foreach ($result as $row) {
                 $blockId = $row['block_id'];
 
@@ -150,9 +359,7 @@ class CalculatorController
                 }
             }
 
-            // Розподіляємо блоки по областях (логіка може варіюватися)
             foreach ($groupedByBlock as $block) {
-                // Простий розподіл: перші блоки - підлога, середні - стіни, останні - стеля
                 $blockName = strtolower($block['name']);
 
                 if (strpos($blockName, 'підлог') !== false || strpos($blockName, 'пол') !== false) {
@@ -160,12 +367,10 @@ class CalculatorController
                 } elseif (strpos($blockName, 'стел') !== false || strpos($blockName, 'потолок') !== false) {
                     $areas[2]['service_blocks'][] = $block;
                 } else {
-                    // За замовчуванням - стіни
                     $areas[1]['service_blocks'][] = $block;
                 }
             }
 
-            // Видаляємо порожні області
             $areas = array_filter($areas, function($area) {
                 return !empty($area['service_blocks']);
             });
@@ -178,16 +383,12 @@ class CalculatorController
         }
     }
 
-    /**
-     * Спрощений розрахунок вартості
-     */
     private function calculateTotal($selectedServices, $wallArea, $roomArea)
     {
         $total = 0;
 
         foreach ($selectedServices as $serviceId) {
             try {
-                // Виправляємо $this->database на $this->db
                 $stmt = $this->db->prepare("
                     SELECT price_per_sqm, name
                     FROM services 
@@ -200,12 +401,11 @@ class CalculatorController
                     $price = floatval($result['price_per_sqm']);
                     $serviceName = strtolower($result['name']);
 
-                    // Простий розподіл по типу послуги на основі назви
                     if (strpos($serviceName, 'підлог') !== false || strpos($serviceName, 'пол') !== false ||
                         strpos($serviceName, 'стел') !== false || strpos($serviceName, 'потолок') !== false) {
-                        $area = $roomArea; // Підлога та стеля = площа кімнати
+                        $area = $roomArea;
                     } else {
-                        $area = $wallArea; // Стіни та інше = площа стін
+                        $area = $wallArea;
                     }
 
                     $total += $price * $area;
@@ -218,9 +418,6 @@ class CalculatorController
         return $total;
     }
 
-    /**
-     * API метод для отримання послуг в JSON форматі
-     */
     public function getServicesJson()
     {
         header('Content-Type: application/json');
@@ -242,9 +439,6 @@ class CalculatorController
         }
     }
 
-    /**
-     * API метод для розрахунку вартості
-     */
     public function calculateJson()
     {
         header('Content-Type: application/json');

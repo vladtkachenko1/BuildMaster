@@ -158,7 +158,223 @@ class ServiceCalculatorController
         }
     }
 
-// Додатковий метод для отримання правильної площі на основі типу області
+    public function saveRoomWithServices()
+    {
+        header('Content-Type: application/json');
+
+        try {
+            $input = json_decode(file_get_contents('php://input'), true);
+
+            if (!$input) {
+                throw new Exception('Немає даних для збереження');
+            }
+
+            // Отримуємо дані
+            $roomTypeId = $input['room_type_id'] ?? null;
+            $wallArea = floatval($input['wall_area'] ?? 0);
+            $floorArea = floatval($input['floor_area'] ?? 0);
+            $roomName = $input['room_name'] ?? '';
+            $selectedServices = $input['selected_services'] ?? [];
+
+            // Валідація
+            if (!$roomTypeId || $wallArea <= 0 || $floorArea <= 0 || empty($selectedServices)) {
+                throw new Exception('Не всі обов\'язкові поля заповнені');
+            }
+
+            $this->database->beginTransaction();
+
+            // Отримуємо або створюємо замовлення для сесії
+            $orderId = $this->getOrCreateDraftOrder();
+
+            // Додаємо кімнату
+            $stmt = $this->database->prepare("
+                INSERT INTO order_rooms (order_id, room_type_id, wall_area, floor_area, room_name) 
+                VALUES (?, ?, ?, ?, ?)
+            ");
+            $stmt->execute([$orderId, $roomTypeId, $wallArea, $floorArea, $roomName]);
+            $roomId = $this->database->lastInsertId();
+
+            // Додаємо послуги для кімнати
+            $totalAmount = 0;
+            foreach ($selectedServices as $service) {
+                $serviceId = $service['id'];
+                $areaType = $service['area_type'];
+                $price = floatval($service['price']);
+
+                // Визначаємо площу залежно від типу
+                $area = $this->getAreaByType($areaType, $wallArea, $floorArea);
+                $totalPrice = $price * $area;
+                $totalAmount += $totalPrice;
+
+                $stmt = $this->database->prepare("
+                    INSERT INTO order_room_services 
+                    (order_room_id, service_id, quantity, unit_price, total_price, is_selected) 
+                    VALUES (?, ?, ?, ?, ?, 1)
+                ");
+                $stmt->execute([$roomId, $serviceId, $area, $price, $totalPrice]);
+            }
+
+            // Оновлюємо загальну суму замовлення
+            $this->updateOrderTotal($orderId);
+
+            $this->database->commit();
+
+            echo json_encode([
+                'success' => true,
+                'order_id' => $orderId,
+                'room_id' => $roomId,
+                'message' => 'Кімнату успішно додано до замовлення'
+            ]);
+
+        } catch (Exception $e) {
+            $this->database->rollBack();
+            error_log("Error saving room with services: " . $e->getMessage());
+            echo json_encode([
+                'success' => false,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Отримує або створює чернетку замовлення
+     */
+    private function getOrCreateDraftOrder()
+    {
+        // Спочатку перевіряємо, чи є активне замовлення в сесії
+        if (isset($_SESSION['draft_order_id'])) {
+            $stmt = $this->database->prepare("SELECT id FROM orders WHERE id = ? AND status = 'draft'");
+            $stmt->execute([$_SESSION['draft_order_id']]);
+            if ($stmt->fetch()) {
+                return $_SESSION['draft_order_id'];
+            }
+        }
+
+        // Створюємо нове замовлення
+        $stmt = $this->database->prepare("
+            INSERT INTO orders (status, total_amount) 
+            VALUES ('draft', 0.00)
+        ");
+        $stmt->execute();
+        $orderId = $this->database->lastInsertId();
+
+        // Зберігаємо в сесії
+        $_SESSION['draft_order_id'] = $orderId;
+
+        return $orderId;
+    }
+
+    /**
+     * Оновлює загальну суму замовлення
+     */
+    private function updateOrderTotal($orderId)
+    {
+        $stmt = $this->database->prepare("
+        SELECT SUM(ors.total_price) as total
+        FROM order_room_services ors
+        JOIN order_rooms ord_room ON ors.order_room_id = ord_room.id
+        WHERE ord_room.order_id = ? AND ors.is_selected = 1
+    ");
+        $stmt->execute([$orderId]);
+        $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        $total = $result['total'] ?? 0;
+
+        $stmt = $this->database->prepare("UPDATE orders SET total_amount = ? WHERE id = ?");
+        $stmt->execute([$total, $orderId]);
+    }
+
+    /**
+     * Отримує поточні кімнати замовлення
+     */
+    public function getCurrentOrderRooms()
+    {
+        header('Content-Type: application/json');
+
+        try {
+            $orderId = $_SESSION['draft_order_id'] ?? null;
+
+            if (!$orderId) {
+                echo json_encode([]);
+                return;
+            }
+
+            $stmt = $this->database->prepare("
+            SELECT 
+                ord_room.id,
+                ord_room.room_name,
+                ord_room.wall_area,
+                ord_room.floor_area,
+                rt.name as room_type_name,
+                COALESCE(SUM(ors.total_price), 0) as total_cost
+            FROM order_rooms ord_room
+            LEFT JOIN room_types rt ON ord_room.room_type_id = rt.id
+            LEFT JOIN order_room_services ors ON ord_room.id = ors.order_room_id AND ors.is_selected = 1
+            WHERE ord_room.order_id = ?
+            GROUP BY ord_room.id
+            ORDER BY ord_room.created_at DESC
+        ");
+            $stmt->execute([$orderId]);
+            $rooms = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            echo json_encode($rooms);
+
+        } catch (Exception $e) {
+            error_log("Error getting current order rooms: " . $e->getMessage());
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    }
+
+
+    public function getRoomDetails($roomId)
+    {
+        header('Content-Type: application/json');
+
+        try {
+            // Отримуємо основну інформацію про кімнату
+            $stmt = $this->database->prepare("
+                SELECT 
+                    or.*,
+                    rt.name as room_type_name
+                FROM order_rooms or
+                LEFT JOIN room_types rt ON or.room_type_id = rt.id
+                WHERE or.id = ?
+            ");
+            $stmt->execute([$roomId]);
+            $room = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            if (!$room) {
+                throw new Exception('Кімнату не знайдено');
+            }
+
+            // Отримуємо послуги кімнати
+            $stmt = $this->database->prepare("
+                SELECT 
+                    ors.*,
+                    s.name as service_name,
+                    s.description as service_description,
+                    sb.name as block_name,
+                    a.area_type,
+                    a.name as area_name
+                FROM order_room_services ors
+                LEFT JOIN services s ON ors.service_id = s.id
+                LEFT JOIN service_blocks sb ON s.service_block_id = sb.id
+                LEFT JOIN service_area sa ON s.id = sa.service_id
+                LEFT JOIN areas a ON sa.area_id = a.id
+                WHERE ors.order_room_id = ? AND ors.is_selected = 1
+            ");
+            $stmt->execute([$roomId]);
+            $services = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            $room['services'] = $services;
+
+            echo json_encode($room);
+
+        } catch (Exception $e) {
+            error_log("Error getting room details: " . $e->getMessage());
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    }
     public function getAreaByType($roomId, $areaType)
     {
         try {
