@@ -1,4 +1,4 @@
-// Calculator JavaScript - Узгоджено з контролером
+// Calculator JavaScript - Виправлено маршрутизацію
 
 class CalculatorApp {
     constructor() {
@@ -18,12 +18,14 @@ class CalculatorApp {
     }
 
     bindEvents() {
-
+        // ВИПРАВЛЕНО: кнопка "Створити проект" має перекидати на order-rooms
         const createProjectBtn = document.getElementById("create-project-btn");
         if (createProjectBtn) {
             createProjectBtn.addEventListener("click", (event) => {
                 event.preventDefault();
-                window.location.href = this.basePath + "/calculator/order-rooms";
+                console.log('Redirecting to order-rooms...');
+                // ВИПРАВЛЕНО: спочатку створюємо порожнє замовлення, потім перекидаємо на order-rooms
+                this.createEmptyOrderAndRedirect();
             });
         }
 
@@ -32,7 +34,7 @@ class CalculatorApp {
         if (backBtn) {
             backBtn.addEventListener("click", function (e) {
                 e.preventDefault();
-                window.location.href = "http://localhost/BuildMaster/Calculator/";
+                window.location.href = "/BuildMaster/calculator/";
             });
         }
 
@@ -44,12 +46,12 @@ class CalculatorApp {
             });
         }
 
-        // Перевіряємо існування форми проекту
+        // ВИПРАВЛЕНО: обробка форми проекту - має перекидати на services-selection
         const projectForm = document.getElementById('project-form');
         if (projectForm) {
             projectForm.addEventListener('submit', (e) => {
                 e.preventDefault();
-                this.handleFormSubmit();
+                this.handleProjectFormSubmit();
             });
         }
 
@@ -64,7 +66,100 @@ class CalculatorApp {
         });
     }
 
-    // ВИДАЛЕНО: метод completeOrder (не існує в контролері)
+    // НОВИЙ МЕТОД: створення порожнього замовлення перед переходом на order-rooms
+    async createEmptyOrderAndRedirect() {
+        try {
+            const response = await fetch(this.basePath + '/calculator/create-empty-order', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // Успішно створено порожнє замовлення, перекидаємо на order-rooms
+                window.location.href = this.basePath + '/calculator/order-rooms';
+            } else {
+                // Якщо не вдалося створити замовлення, все одно перекидаємо (можливо вже є активне)
+                console.warn('Could not create empty order:', data.error);
+                window.location.href = this.basePath + '/calculator/order-rooms';
+            }
+        } catch (error) {
+            console.error('Error creating empty order:', error);
+            // У разі помилки все одно перекидаємо
+            window.location.href = this.basePath + '/calculator/order-rooms';
+        }
+    }
+
+    // ВИПРАВЛЕНО: новий метод для обробки форми проекту
+    async handleProjectFormSubmit() {
+        const form = document.getElementById('project-form');
+
+        if (!form) {
+            console.error('Форма проекту не знайдена');
+            return;
+        }
+
+        const formData = new FormData(form);
+        const roomTypeId = formData.get('room_type_id');
+        const wallArea = parseFloat(formData.get('wall_area'));
+        const roomArea = parseFloat(formData.get('room_area'));
+
+        // Валідація форми
+        if (!this.validateForm(formData)) {
+            return;
+        }
+
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Збереження...';
+            submitBtn.disabled = true;
+
+            try {
+                // ВИПРАВЛЕНО: спочатку створюємо замовлення для нової кімнати
+                const response = await fetch(this.basePath + '/calculator/create-order-for-new-room', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        room_type_id: roomTypeId,
+                        wall_area: wallArea,
+                        room_area: roomArea
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Успішно створено замовлення, перекидаємо на вибір послуг
+                    const url = `${this.basePath}/calculator/services-selection?room_type_id=${encodeURIComponent(roomTypeId)}&wall_area=${encodeURIComponent(wallArea)}&room_area=${encodeURIComponent(roomArea)}&room_id=${encodeURIComponent(data.room_id)}`;
+
+                    // Зберігаємо дані в sessionStorage для використання на наступній сторінці
+                    sessionStorage.setItem('selected_room_type_id', roomTypeId);
+                    sessionStorage.setItem('wall_area', wallArea);
+                    sessionStorage.setItem('room_area', roomArea);
+                    sessionStorage.setItem('current_room_id', data.room_id);
+
+                    window.location.href = url;
+                } else {
+                    throw new Error(data.error || 'Помилка створення замовлення');
+                }
+
+            } catch (error) {
+                console.error('Error processing form:', error);
+                this.showError('Помилка обробки форми: ' + error.message);
+            } finally {
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            }
+        }
+    }
 
     // Метод для видалення кімнати - ВИПРАВЛЕНО URL
     async removeRoom(roomId) {
@@ -186,57 +281,6 @@ class CalculatorApp {
         });
 
         select.classList.add('loaded');
-    }
-
-    async handleFormSubmit() {
-        const form = document.getElementById('project-form');
-
-        if (!form) {
-            console.error('Форма проекту не знайдена');
-            return;
-        }
-
-        const formData = new FormData(form);
-
-        if (!this.validateForm(formData)) {
-            return;
-        }
-
-        const submitBtn = form.querySelector('button[type="submit"]');
-        if (submitBtn) {
-            const originalText = submitBtn.innerHTML;
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Збереження...';
-            submitBtn.disabled = true;
-
-            try {
-                // ВИПРАВЛЕНО: URL відповідає методу createProject() в контролері
-                const response = await fetch(this.basePath + '/calculator/create-project', {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP помилка! статус: ${response.status}`);
-                }
-
-                const data = await response.json();
-
-                if (data.success) {
-                    window.location.href = data.redirect_url;
-                } else {
-                    this.showError(data.error || 'Помилка збереження даних');
-                }
-            } catch (error) {
-                console.error('Error submitting form:', error);
-                this.showError('Помилка з\'єднання з сервером: ' + error.message);
-            } finally {
-                submitBtn.innerHTML = originalText;
-                submitBtn.disabled = false;
-            }
-        }
     }
 
     async saveRoomWithServices(selectedServices, roomName = 'Кімната') {
@@ -629,34 +673,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     app.addRippleEffect();
-});
-
-// Обробник для форми проекту
-document.addEventListener('DOMContentLoaded', () => {
-    const projectForm = document.getElementById("project-form");
-    if (!projectForm) return;
-
-    projectForm.addEventListener("submit", function (e) {
-        e.preventDefault();
-
-        const roomTypeId = document.getElementById("room-type").value;
-        const wallArea = document.getElementById("wall-area").value;
-        const roomArea = document.getElementById("room-area").value;
-
-        if (!roomTypeId || wallArea <= 0 || roomArea <= 0) {
-            const errorMessage = document.getElementById("error-message");
-            const errorModal = document.getElementById("error-modal");
-
-            if (errorMessage && errorModal) {
-                errorMessage.textContent = "Будь ласка, заповніть усі поля коректно.";
-                errorModal.style.display = "block";
-            }
-            return;
-        }
-
-        const url = `/BuildMaster/calculator/services-selection?room_type_id=${encodeURIComponent(roomTypeId)}&wall_area=${encodeURIComponent(wallArea)}&room_area=${encodeURIComponent(roomArea)}`;
-        window.location.href = url;
-    });
 });
 
 // CSS для ripple ефекту

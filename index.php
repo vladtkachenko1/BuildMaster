@@ -1,3 +1,4 @@
+
 <?php
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -186,6 +187,14 @@ switch ($path) {
         }, 'Помилка завантаження типів кімнат');
         break;
 
+    // ВИПРАВЛЕНО: додано правильний маршрут для отримання послуг
+    case '/calculator/services':
+        executeController(function() use ($database) {
+            $controller = new CalculatorController($database);
+            $controller->getServicesJson();
+        }, 'Помилка завантаження послуг');
+        break;
+
     case '/calculator/services-json':
     case '/api/services':
         executeController(function() use ($database) {
@@ -196,12 +205,14 @@ switch ($path) {
 
     case '/calculator/calculate-json':
     case '/api/calculate':
+    case '/calculate':
         executeController(function() use ($database) {
             $controller = new CalculatorController($database);
             $controller->calculateJson();
         }, 'Помилка розрахунку');
         break;
 
+    // ВИПРАВЛЕНО: цей маршрут тепер не використовується для форми проекту
     case '/calculator/create':
     case '/calculator/create-project':
         executeController(function() use ($database) {
