@@ -54,6 +54,8 @@ class CalculatorController
         return $this->view('calculator/services-selection');
     }
 
+// У CalculatorController замінити метод createProject():
+
     public function createProject()
     {
         header('Content-Type: application/json');
@@ -69,29 +71,44 @@ class CalculatorController
 
             // Перевіряємо чи є активне замовлення, якщо ні - створюємо
             if (!isset($_SESSION['current_order_id'])) {
-                // Створюємо нове пусте замовлення
+                // ВИПРАВЛЕНО: створюємо нове замовлення з правильними NULL значеннями
                 $stmt = $this->db->prepare("
-                    INSERT INTO orders (status, total_amount, created_at, updated_at) 
-                    VALUES ('draft', 0.00, NOW(), NOW())
-                ");
+                INSERT INTO orders (user_id, guest_name, guest_email, guest_phone, status, total_amount, notes, admin_notes, created_at, updated_at) 
+                VALUES (NULL, NULL, NULL, NULL, 'draft', 0.00, NULL, NULL, NOW(), NOW())
+            ");
                 $stmt->execute();
                 $_SESSION['current_order_id'] = $this->db->lastInsertId();
             }
 
-            // Зберігаємо дані кімнати в сесії для передачі на сторінку вибору послуг
-            $_SESSION['current_room_data'] = [
-                'room_type_id' => $roomTypeId,
-                'wall_area' => $wallArea,
-                'floor_area' => $roomArea
-            ];
+            $orderId = $_SESSION['current_order_id'];
+
+            $this->db->beginTransaction();
+
+            // ВИПРАВЛЕНО: додаємо room_type_id в запит
+            $stmt = $this->db->prepare("
+            INSERT INTO order_rooms (order_id, room_type_id, wall_area, floor_area, room_name, created_at) 
+            VALUES (?, ?, ?, ?, 'Нова кімната', NOW())
+        ");
+            $stmt->execute([$orderId, $roomTypeId, $wallArea, $roomArea]);
+
+            $roomId = $this->db->lastInsertId();
+
+            $this->db->commit();
+
+            // Зберігаємо ID кімнати в сесії
+            $_SESSION['current_room_id'] = $roomId;
 
             echo json_encode([
                 'success' => true,
-                'message' => 'Дані кімнати збережено',
-                'redirect_url' => '/BuildMaster/calculator/services-selection'
+                'message' => 'Кімнату створено',
+                'room_id' => $roomId,
+                'redirect_url' => '/BuildMaster/calculator/services-selection?room_type_id=' . $roomTypeId . '&wall_area=' . $wallArea . '&room_area=' . $roomArea . '&room_id=' . $roomId
             ]);
 
         } catch (\Exception $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             http_response_code(500);
             echo json_encode([
                 'success' => false,
@@ -99,7 +116,6 @@ class CalculatorController
             ]);
         }
     }
-
     public function saveRoomWithServices()
     {
         header('Content-Type: application/json');
@@ -108,30 +124,31 @@ class CalculatorController
             $input = json_decode(file_get_contents('php://input'), true);
             $selectedServices = $input['services'] ?? [];
             $roomName = $input['room_name'] ?? 'Кімната';
+            $roomId = $_SESSION['current_room_id'] ?? null;
 
-            if (!isset($_SESSION['current_order_id']) || !isset($_SESSION['current_room_data'])) {
+            if (!isset($_SESSION['current_order_id']) || !$roomId) {
                 throw new \Exception('Дані сесії відсутні');
             }
 
             $orderId = $_SESSION['current_order_id'];
-            $roomData = $_SESSION['current_room_data'];
+
+            // Отримуємо дані кімнати
+            $stmt = $this->db->prepare("SELECT * FROM order_rooms WHERE id = ? AND order_id = ?");
+            $stmt->execute([$roomId, $orderId]);
+            $room = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            if (!$room) {
+                throw new \Exception('Кімната не знайдена');
+            }
 
             $this->db->beginTransaction();
 
-            // Додаємо кімнату
-            $stmt = $this->db->prepare("
-                INSERT INTO order_rooms (order_id, room_type_id, wall_area, floor_area, room_name, created_at) 
-                VALUES (?, ?, ?, ?, ?, NOW())
-            ");
-            $stmt->execute([
-                $orderId,
-                $roomData['room_type_id'],
-                $roomData['wall_area'],
-                $roomData['floor_area'],
-                $roomName
-            ]);
+            // Оновлюємо назву кімнати якщо потрібно
+            if ($roomName !== 'Кімната') {
+                $stmt = $this->db->prepare("UPDATE order_rooms SET room_name = ? WHERE id = ?");
+                $stmt->execute([$roomName, $roomId]);
+            }
 
-            $roomId = $this->db->lastInsertId();
             $totalRoomPrice = 0;
 
             // Додаємо послуги
@@ -148,35 +165,35 @@ class CalculatorController
                         strpos($serviceName, 'пол') !== false ||
                         strpos($serviceName, 'стел') !== false ||
                         strpos($serviceName, 'потолок') !== false) {
-                        $quantity = $roomData['floor_area'];
+                        $quantity = $room['floor_area'];
                     } else {
-                        $quantity = $roomData['wall_area'];
+                        $quantity = $room['wall_area'];
                     }
 
                     $totalPrice = $unitPrice * $quantity;
                     $totalRoomPrice += $totalPrice;
 
                     $stmt = $this->db->prepare("
-                        INSERT INTO order_room_services 
-                        (order_room_id, service_id, quantity, unit_price, total_price, is_selected, created_at) 
-                        VALUES (?, ?, ?, ?, ?, 1, NOW())
-                    ");
+                    INSERT INTO order_room_services 
+                    (order_room_id, service_id, quantity, unit_price, total_price, is_selected, created_at) 
+                    VALUES (?, ?, ?, ?, ?, 1, NOW())
+                ");
                     $stmt->execute([$roomId, $serviceId, $quantity, $unitPrice, $totalPrice]);
                 }
             }
 
             // Оновлюємо загальну суму замовлення
             $stmt = $this->db->prepare("
-                UPDATE orders 
-                SET total_amount = total_amount + ?, updated_at = NOW() 
-                WHERE id = ?
-            ");
+            UPDATE orders 
+            SET total_amount = total_amount + ?, updated_at = NOW() 
+            WHERE id = ?
+        ");
             $stmt->execute([$totalRoomPrice, $orderId]);
 
             $this->db->commit();
 
             // Очищуємо дані кімнати з сесії
-            unset($_SESSION['current_room_data']);
+            unset($_SESSION['current_room_id']);
 
             echo json_encode([
                 'success' => true,
@@ -187,7 +204,9 @@ class CalculatorController
             ]);
 
         } catch (\Exception $e) {
-            $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             http_response_code(500);
             echo json_encode([
                 'success' => false,
@@ -195,7 +214,6 @@ class CalculatorController
             ]);
         }
     }
-
     public function getCurrentOrderRooms()
     {
         header('Content-Type: application/json');

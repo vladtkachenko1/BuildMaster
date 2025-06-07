@@ -78,52 +78,43 @@ class OrderController
 
     public function createEmptyOrder()
     {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            http_response_code(405);
-            echo json_encode(['error' => 'Метод не дозволений']);
-            return;
-        }
-
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
+        header('Content-Type: application/json');
 
         try {
-            $this->db->beginTransaction();
-
-            // Створюємо порожнє замовлення зі статусом 'draft'
-            $stmt = $this->db->prepare("
-                INSERT INTO orders (guest_name, guest_email, guest_phone, status, total_amount, created_at, updated_at) 
-                VALUES ('', '', '', 'draft', 0, NOW(), NOW())
-            ");
-
-            if (!$stmt->execute()) {
-                throw new \Exception('Не вдалося створити замовлення');
+            // Перевіряємо чи є вже активне замовлення
+            if (isset($_SESSION['current_order_id'])) {
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Замовлення вже існує',
+                    'order_id' => $_SESSION['current_order_id']
+                ]);
+                return;
             }
 
+            // Створюємо нове пусте замовлення з правильними NULL значеннями
+            $stmt = $this->db->prepare("
+            INSERT INTO orders (user_id, guest_name, guest_email, guest_phone, status, total_amount, notes, admin_notes, created_at, updated_at) 
+            VALUES (NULL, NULL, NULL, NULL, 'draft', 0.00, NULL, NULL, NOW(), NOW())
+        ");
+            $stmt->execute();
+
             $orderId = $this->db->lastInsertId();
-
-            // Зберігаємо ID замовлення в сесії
             $_SESSION['current_order_id'] = $orderId;
-
-            $this->db->commit();
-
-            error_log("Created empty order with ID: " . $orderId);
 
             echo json_encode([
                 'success' => true,
-                'order_id' => $orderId,
-                'redirect_url' => '/BuildMaster/calculator/order-rooms'
+                'message' => 'Пусте замовлення створено',
+                'order_id' => $orderId
             ]);
 
         } catch (\Exception $e) {
-            $this->db->rollBack();
-            error_log("Error creating empty order: " . $e->getMessage());
             http_response_code(500);
-            echo json_encode(['error' => 'Помилка створення замовлення']);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Помилка створення замовлення: ' . $e->getMessage()
+            ]);
         }
     }
-
     public function updateRoomWithServices()
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

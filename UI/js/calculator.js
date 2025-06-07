@@ -120,35 +120,28 @@ class CalculatorApp {
             submitBtn.disabled = true;
 
             try {
-                // ВИПРАВЛЕНО: спочатку створюємо замовлення для нової кімнати
-                const response = await fetch(this.basePath + '/calculator/create-order-for-new-room', {
+                // ВИПРАВЛЕНО: надсилаємо дані через FormData замість JSON
+                const response = await fetch(this.basePath + '/calculator/create-project', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
                         'X-Requested-With': 'XMLHttpRequest'
                     },
-                    body: JSON.stringify({
-                        room_type_id: roomTypeId,
-                        wall_area: wallArea,
-                        room_area: roomArea
-                    })
+                    body: formData
                 });
 
                 const data = await response.json();
 
                 if (data.success) {
-                    // Успішно створено замовлення, перекидаємо на вибір послуг
-                    const url = `${this.basePath}/calculator/services-selection?room_type_id=${encodeURIComponent(roomTypeId)}&wall_area=${encodeURIComponent(wallArea)}&room_area=${encodeURIComponent(roomArea)}&room_id=${encodeURIComponent(data.room_id)}`;
-
-                    // Зберігаємо дані в sessionStorage для використання на наступній сторінці
+                    // Зберігаємо дані в sessionStorage
                     sessionStorage.setItem('selected_room_type_id', roomTypeId);
                     sessionStorage.setItem('wall_area', wallArea);
                     sessionStorage.setItem('room_area', roomArea);
                     sessionStorage.setItem('current_room_id', data.room_id);
 
-                    window.location.href = url;
+                    // Перекидаємо на services-selection з правильним room_id
+                    window.location.href = data.redirect_url;
                 } else {
-                    throw new Error(data.error || 'Помилка створення замовлення');
+                    throw new Error(data.error || 'Помилка створення проекту');
                 }
 
             } catch (error) {
@@ -160,7 +153,6 @@ class CalculatorApp {
             }
         }
     }
-
     // Метод для видалення кімнати - ВИПРАВЛЕНО URL
     async removeRoom(roomId) {
         try {
