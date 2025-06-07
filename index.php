@@ -1,4 +1,3 @@
-
 <?php
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -26,8 +25,13 @@ $database = $dbInstance->getConnection();
 spl_autoload_register(function ($class) {
     $paths = ['Controllers/', 'Models/', 'Database/', 'Core/'];
 
+    // Видаляємо namespace для пошуку файлу
+    $classWithoutNamespace = str_replace('BuildMaster\\Controllers\\', '', $class);
+    $classWithoutNamespace = str_replace('BuildMaster\\Models\\', '', $classWithoutNamespace);
+    $classWithoutNamespace = str_replace('BuildMaster\\', '', $classWithoutNamespace);
+
     foreach ($paths as $path) {
-        $file = __DIR__ . '/' . $path . $class . '.php';
+        $file = __DIR__ . '/' . $path . $classWithoutNamespace . '.php';
         if (file_exists($file)) {
             require_once $file;
             return;
@@ -176,6 +180,13 @@ switch ($path) {
         }, 'Помилка завантаження вибору послуг');
         break;
 
+    case '/calculator/result':
+        executeController(function() use ($database) {
+            $controller = new CalculatorController($database);
+            $controller->result();
+        }, 'Помилка завантаження результатів');
+        break;
+
     // ================================
     // КАЛЬКУЛЯТОР - API ENDPOINTS
     // ================================
@@ -187,32 +198,24 @@ switch ($path) {
         }, 'Помилка завантаження типів кімнат');
         break;
 
-    // ВИПРАВЛЕНО: додано правильний маршрут для отримання послуг
     case '/calculator/services':
-        executeController(function() use ($database) {
-            $controller = new CalculatorController($database);
-            $controller->getServicesJson();
-        }, 'Помилка завантаження послуг');
-        break;
-
     case '/calculator/services-json':
     case '/api/services':
         executeController(function() use ($database) {
-            $controller = new CalculatorController($database);
+            $controller = new ServiceCalculatorController($database);
             $controller->getServicesJson();
         }, 'Помилка завантаження послуг');
         break;
 
+    case '/calculator/calculate':
     case '/calculator/calculate-json':
     case '/api/calculate':
-    case '/calculate':
         executeController(function() use ($database) {
-            $controller = new CalculatorController($database);
+            $controller = new ServiceCalculatorController($database);
             $controller->calculateJson();
         }, 'Помилка розрахунку');
         break;
 
-    // ВИПРАВЛЕНО: цей маршрут тепер не використовується для форми проекту
     case '/calculator/create':
     case '/calculator/create-project':
         executeController(function() use ($database) {
@@ -223,23 +226,16 @@ switch ($path) {
 
     case '/calculator/save-room-services':
         executeController(function() use ($database) {
-            $controller = new CalculatorController($database);
+            $controller = new ServiceCalculatorController($database);
             $controller->saveRoomWithServices();
         }, 'Помилка збереження кімнати з послугами');
         break;
 
     case '/calculator/current-rooms':
         executeController(function() use ($database) {
-            $controller = new CalculatorController($database);
+            $controller = new ServiceCalculatorController($database);
             $controller->getCurrentOrderRooms();
         }, 'Помилка завантаження поточних кімнат');
-        break;
-
-    case '/calculator/result':
-        executeController(function() use ($database) {
-            $controller = new CalculatorController($database);
-            $controller->result();
-        }, 'Помилка завантаження результатів');
         break;
 
     // ================================
@@ -305,17 +301,23 @@ switch ($path) {
         break;
 
     // ================================
-    // ЗАСТАРІЛІ/АЛЬТЕРНАТИВНІ МАРШРУТИ
+    // ДОДАТКОВІ МЕТОДИ КІМНАТ
     // ================================
 
-    case '/calculator/create-new-order':
-        // Перенаправляємо на новий endpoint
-        header('Location: /BuildMaster/calculator/create-empty-order');
-        exit;
+    case '/calculator/room-details':
+        executeController(function() use ($database) {
+            $controller = new ServiceCalculatorController($database);
+            $roomId = $_GET['room_id'] ?? $_POST['room_id'] ?? null;
+            if ($roomId) {
+                $controller->getRoomDetails($roomId);
+            } else {
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'Room ID is required']);
+            }
+        }, 'Помилка завантаження деталей кімнати');
         break;
 
     case '/calculator/add-room':
-        // Цей маршрут може бути перенаправлений або обробленй
         executeController(function() use ($database) {
             $controller = new OrderController($database);
             if (method_exists($controller, 'addRoomToOrder')) {
@@ -334,17 +336,24 @@ switch ($path) {
             if (method_exists($controller, 'editRoom')) {
                 $controller->editRoom();
             } else {
+                header('Content-Type: application/json');
                 http_response_code(404);
                 echo json_encode(['error' => 'Метод не реалізовано']);
             }
         }, 'Помилка редагування кімнати');
         break;
 
+    // ================================
+    // ПЕРЕНАПРАВЛЕННЯ ЗАСТАРІЛИХ МАРШРУТІВ
+    // ================================
+
+    case '/calculator/create-new-order':
+        header('Location: /BuildMaster/calculator/create-empty-order');
+        exit;
+
     case '/calculator/update-room':
-        // Перенаправляємо на правильний endpoint
         header('Location: /BuildMaster/calculator/update-room-services');
         exit;
-        break;
 
     // ================================
     // 404 - СТОРІНКУ НЕ ЗНАЙДЕНО
@@ -378,3 +387,4 @@ switch ($path) {
         }
         break;
 }
+?>

@@ -281,6 +281,8 @@
     align-items: center;
     gap: 0.5rem;
     transition: all 0.3s ease;
+    text-decoration: none; /* прибирає підкреслення */
+    margin-top: 1rem;       /* додає відступ зверху */
 }
 
 .secondary-btn:hover {

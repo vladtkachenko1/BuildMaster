@@ -374,8 +374,16 @@ class ServicesSelection {
             id: service.id,
             name: service.name,
             price: service.price,
-            area_type: service.areaType // Змінюємо на area_type для консистентності з PHP
+            area_type: service.areaType
         }));
+
+        console.log('Sending data:', {
+            room_type_id: window.calculatorData.roomTypeId,
+            wall_area: window.calculatorData.wallArea,
+            floor_area: window.calculatorData.roomArea,
+            room_name: window.calculatorData.roomName || 'Кімната',
+            selected_services: selectedServicesArray
+        });
 
         try {
             const response = await fetch('/BuildMaster/calculator/save-room-services', {
@@ -386,7 +394,7 @@ class ServicesSelection {
                 body: JSON.stringify({
                     room_type_id: window.calculatorData.roomTypeId,
                     wall_area: window.calculatorData.wallArea,
-                    floor_area: window.calculatorData.roomArea, // Це площа підлоги
+                    floor_area: window.calculatorData.roomArea,
                     room_name: window.calculatorData.roomName || 'Кімната',
                     selected_services: selectedServicesArray
                 })
@@ -397,6 +405,7 @@ class ServicesSelection {
             }
 
             const result = await response.json();
+            console.log('Response from server:', result);
 
             if (!result.success) {
                 throw new Error(result.error || 'Невідома помилка');

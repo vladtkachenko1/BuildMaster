@@ -56,6 +56,9 @@ class AuthController {
                         'authenticated' => true
                     ];
 
+                    // ДОДАТИ: Відновлюємо активне замовлення користувача
+                    $this->restoreUserActiveOrder($db, $user['id']);
+
                     http_response_code(200);
                     echo json_encode(['success' => true]);
                 } else {
@@ -70,6 +73,25 @@ class AuthController {
         } else {
             http_response_code(405);
             echo json_encode(['error' => 'Метод не дозволено']);
+        }
+    }
+    private function restoreUserActiveOrder($db, $userId) {
+        try {
+            // Шукаємо останнє активне замовлення користувача
+            $stmt = $db->prepare("
+            SELECT id FROM orders 
+            WHERE user_id = ? AND status = 'draft' 
+            ORDER BY updated_at DESC LIMIT 1
+        ");
+            $stmt->execute([$userId]);
+            $activeOrder = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($activeOrder) {
+                $_SESSION['current_order_id'] = $activeOrder['id'];
+                error_log("Restored active order {$activeOrder['id']} for user {$userId} after login");
+            }
+        } catch (Exception $e) {
+            error_log("Error restoring user active order: " . $e->getMessage());
         }
     }
     public function register() {

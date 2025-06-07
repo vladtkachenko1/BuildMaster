@@ -30,9 +30,31 @@ class OrderController
         }
 
         try {
-            // Перевіряємо чи є вже активне замовлення
-            if (isset($_SESSION['current_order_id'])) {
-                // Якщо замовлення вже є, просто перенаправляємо на форму створення кімнати
+            // Отримуємо ID користувача якщо він залогінений
+            $userId = $_SESSION['user']['id'] ?? null;
+
+            // Перевіряємо чи є вже активне замовлення для цього користувача
+            if ($userId) {
+                // Шукаємо активне замовлення користувача
+                $stmt = $this->db->prepare("
+                SELECT id FROM orders 
+                WHERE user_id = ? AND status = 'draft' 
+                ORDER BY created_at DESC LIMIT 1
+            ");
+                $stmt->execute([$userId]);
+                $existingOrder = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($existingOrder) {
+                    $_SESSION['current_order_id'] = $existingOrder['id'];
+                    echo json_encode([
+                        'success' => true,
+                        'order_id' => $existingOrder['id'],
+                        'redirect_url' => '/BuildMaster/calculator/project-form'
+                    ]);
+                    return;
+                }
+            } elseif (isset($_SESSION['current_order_id'])) {
+                // Для гостя перевіряємо сесію
                 echo json_encode([
                     'success' => true,
                     'order_id' => $_SESSION['current_order_id'],
@@ -43,24 +65,22 @@ class OrderController
 
             $this->db->beginTransaction();
 
-            // Створюємо нове пусте замовлення зі статусом 'draft'
+            // Створюємо нове замовлення з ID користувача якщо він залогінений
             $stmt = $this->db->prepare("
-            INSERT INTO orders (guest_name, guest_email, guest_phone, status, total_amount, created_at, updated_at) 
-            VALUES ('', '', '', 'draft', 0, NOW(), NOW())
+            INSERT INTO orders (user_id, guest_name, guest_email, guest_phone, status, total_amount, created_at, updated_at) 
+            VALUES (?, '', '', '', 'draft', 0, NOW(), NOW())
         ");
 
-            if (!$stmt->execute()) {
+            if (!$stmt->execute([$userId])) {
                 throw new \Exception('Не вдалося створити замовлення');
             }
 
             $orderId = $this->db->lastInsertId();
-
-            // Зберігаємо ID замовлення в сесії
             $_SESSION['current_order_id'] = $orderId;
 
             $this->db->commit();
 
-            error_log("Created empty order for new room with ID: " . $orderId);
+            error_log("Created empty order for new room with ID: " . $orderId . " for user: " . ($userId ?? 'guest'));
 
             echo json_encode([
                 'success' => true,
@@ -75,14 +95,36 @@ class OrderController
             echo json_encode(['error' => 'Помилка створення замовлення']);
         }
     }
-
     public function createEmptyOrder()
     {
         header('Content-Type: application/json');
 
         try {
+            // Отримуємо ID користувача якщо він залогінений
+            $userId = $_SESSION['user']['id'] ?? null;
+
             // Перевіряємо чи є вже активне замовлення
-            if (isset($_SESSION['current_order_id'])) {
+            if ($userId) {
+                // Для залогіненого користувача шукаємо активне замовлення
+                $stmt = $this->db->prepare("
+                SELECT id FROM orders 
+                WHERE user_id = ? AND status = 'draft' 
+                ORDER BY created_at DESC LIMIT 1
+            ");
+                $stmt->execute([$userId]);
+                $existingOrder = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($existingOrder) {
+                    $_SESSION['current_order_id'] = $existingOrder['id'];
+                    echo json_encode([
+                        'success' => true,
+                        'message' => 'Замовлення вже існує',
+                        'order_id' => $existingOrder['id']
+                    ]);
+                    return;
+                }
+            } elseif (isset($_SESSION['current_order_id'])) {
+                // Для гостя перевіряємо сесію
                 echo json_encode([
                     'success' => true,
                     'message' => 'Замовлення вже існує',
@@ -91,12 +133,12 @@ class OrderController
                 return;
             }
 
-            // Створюємо нове пусте замовлення з правильними NULL значеннями
+            // Створюємо нове замовлення з ID користувача
             $stmt = $this->db->prepare("
             INSERT INTO orders (user_id, guest_name, guest_email, guest_phone, status, total_amount, notes, admin_notes, created_at, updated_at) 
-            VALUES (NULL, NULL, NULL, NULL, 'draft', 0.00, NULL, NULL, NOW(), NOW())
+            VALUES (?, NULL, NULL, NULL, 'draft', 0.00, NULL, NULL, NOW(), NOW())
         ");
-            $stmt->execute();
+            $stmt->execute([$userId]);
 
             $orderId = $this->db->lastInsertId();
             $_SESSION['current_order_id'] = $orderId;
@@ -113,6 +155,40 @@ class OrderController
                 'success' => false,
                 'error' => 'Помилка створення замовлення: ' . $e->getMessage()
             ]);
+        }
+    }
+    public function restoreActiveOrder()
+    {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+
+        // Якщо вже є активне замовлення в сесії, нічого не робимо
+        if (isset($_SESSION['current_order_id'])) {
+            return;
+        }
+
+        // Перевіряємо чи користувач залогінений
+        $userId = $_SESSION['user']['id'] ?? null;
+
+        if ($userId) {
+            try {
+                // Шукаємо останнє активне замовлення користувача
+                $stmt = $this->db->prepare("
+                SELECT id FROM orders 
+                WHERE user_id = ? AND status = 'draft' 
+                ORDER BY updated_at DESC LIMIT 1
+            ");
+                $stmt->execute([$userId]);
+                $activeOrder = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($activeOrder) {
+                    $_SESSION['current_order_id'] = $activeOrder['id'];
+                    error_log("Restored active order {$activeOrder['id']} for user {$userId}");
+                }
+            } catch (\Exception $e) {
+                error_log("Error restoring active order: " . $e->getMessage());
+            }
         }
     }
     public function updateRoomWithServices()
@@ -167,32 +243,30 @@ class OrderController
             $totalRoomCost = 0;
 
             // Додаємо нові послуги
-            foreach ($input['selected_services'] as $serviceId) {
-                // Отримуємо дані послуги
-                $stmt = $this->db->prepare("
-                    SELECT s.*, sb.area_type 
-                    FROM services s 
-                    JOIN service_blocks sb ON s.service_block_id = sb.id 
-                    WHERE s.id = ?
-                ");
-                $stmt->execute([$serviceId]);
-                $service = $stmt->fetch(PDO::FETCH_ASSOC);
+            foreach ($input['selected_services'] as $serviceData) {
+                $serviceId = $serviceData['id'];
+                $areaType = $serviceData['area_type'];
+                $pricePerSqm = floatval($serviceData['price_per_sqm']);
 
-                if (!$service) {
-                    continue;
-                }
+                error_log("Processing service: ID={$serviceId}, area_type={$areaType}, price={$pricePerSqm}");
 
                 // Визначаємо кількість (площу) для послуги
-                $quantity = $this->getQuantityByAreaType($service['area_type'], $room['wall_area'], $room['floor_area']);
-                $totalPrice = $quantity * $service['price_per_sqm'];
+                $quantity = $this->getQuantityByAreaType($areaType, $room['wall_area'], $room['floor_area']);
+                $totalPrice = $quantity * $pricePerSqm;
                 $totalRoomCost += $totalPrice;
 
-                // Додаємо послугу до кімнати
+                error_log("Service calculation: quantity={$quantity}, unit_price={$pricePerSqm}, total={$totalPrice}");
+
+                // ВИПРАВЛЕНО: використовуємо правильні назви колонок
                 $stmt = $this->db->prepare("
-                    INSERT INTO order_room_services (order_room_id, service_id, quantity, unit_price, total_price, is_selected, created_at) 
-                    VALUES (?, ?, ?, ?, ?, 1, NOW())
-                ");
-                $stmt->execute([$roomId, $serviceId, $quantity, $service['price_per_sqm'], $totalPrice]);
+                INSERT INTO order_room_services (order_room_id, service_id, quantity, unit_price, is_selected, created_at) 
+                VALUES (?, ?, ?, ?, 1, NOW())
+            ");
+
+                if (!$stmt->execute([$roomId, $serviceId, $quantity, $pricePerSqm])) {
+                    error_log("Failed to insert service: " . implode(", ", $stmt->errorInfo()));
+                    throw new \Exception('Помилка додавання послуги');
+                }
             }
 
             // Оновлюємо загальну суму замовлення
@@ -207,7 +281,7 @@ class OrderController
             unset($_SESSION['room_area']);
             unset($_SESSION['selected_services']);
 
-            error_log("Room services updated successfully");
+            error_log("Room services updated successfully. Room total: " . $totalRoomCost);
 
             echo json_encode([
                 'success' => true,
@@ -219,10 +293,9 @@ class OrderController
             $this->db->rollBack();
             error_log("Error updating room services: " . $e->getMessage());
             http_response_code(500);
-            echo json_encode(['error' => 'Помилка оновлення послуг кімнати']);
+            echo json_encode(['error' => 'Помилка оновлення послуг кімнати: ' . $e->getMessage()]);
         }
     }
-
     public function completeOrder()
     {
         header('Content-Type: application/json; charset=utf-8');
@@ -345,11 +418,11 @@ class OrderController
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
+        $this->restoreActiveOrder();
 
         $orderId = $_SESSION['current_order_id'] ?? null;
 
         if (!$orderId) {
-            // Якщо немає активного замовлення, перенаправляємо на головну
             header('Location: /BuildMaster/calculator');
             exit;
         }
@@ -365,54 +438,95 @@ class OrderController
                 exit;
             }
 
-            // Отримуємо кімнати замовлення з послугами
+            // Отримуємо всі кімнати замовлення
             $stmt = $this->db->prepare("
             SELECT 
-                or_rooms.*,
-                rt.name as room_type_name,
-                COALESCE(SUM(ors.total_price), 0) as room_total_cost,
-                COUNT(ors.id) as services_count
+                or_rooms.id,
+                or_rooms.order_id,
+                or_rooms.room_type_id,
+                or_rooms.room_name,
+                or_rooms.wall_area,
+                or_rooms.floor_area,
+                or_rooms.created_at,
+                rt.name as room_type_name
             FROM order_rooms or_rooms
             LEFT JOIN room_types rt ON or_rooms.room_type_id = rt.id
-            LEFT JOIN order_room_services ors ON or_rooms.id = ors.order_room_id AND ors.is_selected = 1
             WHERE or_rooms.order_id = ?
-            GROUP BY or_rooms.id
             ORDER BY or_rooms.created_at
         ");
             $stmt->execute([$orderId]);
             $orderRooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Отримуємо детальні послуги для кожної кімнати
-            foreach ($orderRooms as &$room) {
+            error_log("Found " . count($orderRooms) . " rooms for order " . $orderId);
+
+            // ВИПРАВЛЕННЯ: Ініціалізуємо масив послуг для кожної кімнати
+            foreach ($orderRooms as $index => &$room) {
+                // Обов'язково ініціалізуємо порожній масив послуг
+                $room['services'] = [];
+                $room['room_total_cost'] = 0;
+                $room['services_count'] = 0;
+
+                error_log("Processing room " . $room['id'] . " (" . $room['room_name'] . ")");
+
+                // Отримуємо послуги ТІЛЬКИ для цієї конкретної кімнати
                 $stmt = $this->db->prepare("
-                SELECT ors.*, s.name as service_name, s.description 
+                SELECT 
+                    ors.id,
+                    ors.order_room_id,
+                    ors.service_id,
+                    ors.quantity,
+                    ors.unit_price,
+                    (ors.quantity * ors.unit_price) as total_price,
+                    s.name as service_name, 
+                    s.description,
+                    sb.name as block_name
                 FROM order_room_services ors
                 JOIN services s ON ors.service_id = s.id
+                JOIN service_blocks sb ON s.service_block_id = sb.id
                 WHERE ors.order_room_id = ? AND ors.is_selected = 1
-                ORDER BY s.name
+                ORDER BY sb.sort_order, s.name
             ");
                 $stmt->execute([$room['id']]);
-                $room['services'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                $services = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-                // Додаємо відсутні поля для уникнення помилок
-                if (!isset($room['room_area'])) {
-                    $room['room_area'] = $room['floor_area'] ?? 0;
+                // Присвоюємо послуги конкретно цій кімнаті
+                $room['services'] = $services;
+
+                error_log("Room " . $room['id'] . " has " . count($services) . " services");
+
+                // Обчислюємо загальну вартість кімнати
+                $roomTotalCost = 0;
+                foreach ($services as $service) {
+                    $serviceTotal = floatval($service['quantity']) * floatval($service['unit_price']);
+                    $roomTotalCost += $serviceTotal;
+                    error_log("  - Service: " . $service['service_name'] . ", Quantity: " . $service['quantity'] . ", Unit Price: " . $service['unit_price'] . ", Total: " . $serviceTotal);
                 }
 
-                // Додаємо поле total_cost як алиас для room_total_cost
-                $room['total_cost'] = $room['room_total_cost'];
+                $room['room_total_cost'] = $roomTotalCost;
+                $room['services_count'] = count($services);
+                $room['total_cost'] = $roomTotalCost; // для сумісності
+                $room['room_area'] = floatval($room['floor_area']); // для сумісності
+
+                error_log("Room " . $room['id'] . " final cost: " . $roomTotalCost);
             }
 
-            $totalAmount = $order['total_amount'];
-            $roomTypes = $this->getRoomTypes();
+            // Очищуємо посилання
+            unset($room);
 
-            // Ініціалізуємо змінні для сесії, якщо вони не існують
+            // Перерахунок загальної суми замовлення
+            $totalAmount = $this->updateOrderTotalAmount($orderId);
+
+            $roomTypes = $this->getRoomTypes();
             $selected_services = $_SESSION['selected_services'] ?? [];
             $room_area = $_SESSION['room_area'] ?? 0;
 
-            error_log("Showing order rooms - Order ID: {$orderId}, Rooms count: " . count($orderRooms) . ", Total: {$totalAmount}");
+            error_log("Final order summary - Order ID: {$orderId}, Rooms count: " . count($orderRooms) . ", Total: {$totalAmount}");
 
-            // Передаємо дані у view з усіма необхідними змінними
+            // Детальний лог для кожної кімнати
+            foreach ($orderRooms as $room) {
+                error_log("FINAL ROOM DATA - ID: " . $room['id'] . ", Name: " . $room['room_name'] . ", Services count: " . count($room['services']) . ", Cost: " . $room['room_total_cost']);
+            }
+
             $viewData = [
                 'order' => $order,
                 'orderRooms' => $orderRooms,
@@ -457,6 +571,15 @@ class OrderController
         try {
             $this->db->beginTransaction();
 
+            // Спочатку отримуємо суму кімнати для логування
+            $stmt = $this->db->prepare("
+            SELECT COALESCE(SUM(total_price), 0) as room_total 
+            FROM order_room_services 
+            WHERE order_room_id = ? AND is_selected = 1
+        ");
+            $stmt->execute([$roomId]);
+            $roomTotal = $stmt->fetchColumn();
+
             // Видаляємо послуги кімнати
             $stmt = $this->db->prepare("DELETE FROM order_room_services WHERE order_room_id = ?");
             $stmt->execute([$roomId]);
@@ -470,7 +593,12 @@ class OrderController
 
             $this->db->commit();
 
-            echo json_encode(['success' => true]);
+            error_log("Removed room {$roomId} with total cost {$roomTotal} from order {$orderId}");
+
+            echo json_encode([
+                'success' => true,
+                'removed_amount' => $roomTotal
+            ]);
 
         } catch (\Exception $e) {
             $this->db->rollBack();
@@ -479,24 +607,30 @@ class OrderController
             echo json_encode(['error' => 'Помилка видалення кімнати']);
         }
     }
-
     private function updateOrderTotalAmount($orderId)
     {
-        $stmt = $this->db->prepare("
+        try {
+            // ВИПРАВЛЕНО: використовуємо обчислювальну колонку total_price
+            $stmt = $this->db->prepare("
             SELECT COALESCE(SUM(ors.total_price), 0) as total
             FROM order_rooms or_rooms
             JOIN order_room_services ors ON or_rooms.id = ors.order_room_id
             WHERE or_rooms.order_id = ? AND ors.is_selected = 1
         ");
-        $stmt->execute([$orderId]);
-        $totalAmount = $stmt->fetchColumn();
+            $stmt->execute([$orderId]);
+            $totalAmount = $stmt->fetchColumn();
 
-        $stmt = $this->db->prepare("UPDATE orders SET total_amount = ?, updated_at = NOW() WHERE id = ?");
-        $stmt->execute([$totalAmount, $orderId]);
+            $stmt = $this->db->prepare("UPDATE orders SET total_amount = ?, updated_at = NOW() WHERE id = ?");
+            $stmt->execute([$totalAmount, $orderId]);
 
-        error_log("Updated order total amount: " . $totalAmount);
+            error_log("Updated order total amount: " . $totalAmount . " for order ID: " . $orderId);
+
+            return $totalAmount;
+        } catch (\Exception $e) {
+            error_log("Error updating order total: " . $e->getMessage());
+            throw $e;
+        }
     }
-
     private function getQuantityByAreaType($areaType, $wallArea, $floorArea)
     {
         switch ($areaType) {
@@ -506,6 +640,7 @@ class OrderController
             case 'ceiling':
                 return (float)$floorArea;
             default:
+                error_log("Unknown area type: " . $areaType . ", defaulting to wall area");
                 return (float)$wallArea;
         }
     }
