@@ -16,34 +16,48 @@ document.addEventListener('DOMContentLoaded', function() {
     const confirmCheckout = document.getElementById('confirm-checkout');
     const cancelCheckout = document.getElementById('cancel-checkout');
 
-    // Відкриття форми проекту для нової кімнати (БЕЗ модального вікна)
-    if (addRoomBtn) {
-        addRoomBtn.addEventListener('click', function() {
-            // Очищуємо дані попередньої кімнати
-            sessionStorage.removeItem('selected_room_type_id');
-            sessionStorage.removeItem('selected_room_name');
-            sessionStorage.removeItem('wall_area');
-            sessionStorage.removeItem('room_area');
-
-            // Переходимо прямо до форми проекту
-            window.location.href = '/BuildMaster/calculator/project-form';
-        });
-    }
-
+    // Обробка кнопки додавання першої кімнати
     if (firstRoomBtn) {
         firstRoomBtn.addEventListener('click', function() {
-            // Очищуємо дані попередньої кімнати
-            sessionStorage.removeItem('selected_room_type_id');
-            sessionStorage.removeItem('selected_room_name');
-            sessionStorage.removeItem('wall_area');
-            sessionStorage.removeItem('room_area');
+            // Очищуємо дані попередньої кімнати і режим редагування
+            clearRoomSessionData();
 
             // Переходимо прямо до форми проекту
             window.location.href = '/BuildMaster/calculator/project-form';
         });
     }
 
-    // Відкриття модального вікна оформлення замовлення
+    // Обробка кнопки додавання нової кімнати
+    if (addRoomBtn) {
+        addRoomBtn.addEventListener('click', function() {
+            // Очищуємо дані попередньої кімнати і режим редагування
+            clearRoomSessionData();
+
+            // Переходимо прямо до форми проекту
+            window.location.href = '/BuildMaster/calculator/project-form';
+        });
+    }
+
+    // Функція очищення даних сесії
+    function clearRoomSessionData() {
+        // Очищуємо sessionStorage
+        sessionStorage.removeItem('selected_room_type_id');
+        sessionStorage.removeItem('selected_room_name');
+        sessionStorage.removeItem('wall_area');
+        sessionStorage.removeItem('room_area');
+        sessionStorage.removeItem('selected_services');
+        sessionStorage.removeItem('editing_room_id');
+
+        // Також очищуємо localStorage якщо використовується
+        localStorage.removeItem('selected_room_type_id');
+        localStorage.removeItem('selected_room_name');
+        localStorage.removeItem('wall_area');
+        localStorage.removeItem('room_area');
+        localStorage.removeItem('selected_services');
+        localStorage.removeItem('editing_room_id');
+    }
+
+    // Обробка кнопки відкриття модального вікна оформлення замовлення
     if (checkoutBtn) {
         checkoutBtn.addEventListener('click', function() {
             checkoutModal.style.display = 'flex';
@@ -159,88 +173,72 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Обробка кнопок редагування кімнат
+    // Обробка кнопок редагування та видалення кімнат
     document.addEventListener('click', function(e) {
+        // Обробка кнопки редагування - пряме перенаправлення на сторінку редагування
         if (e.target.classList.contains('edit-room-btn') || e.target.parentElement.classList.contains('edit-room-btn')) {
+            e.preventDefault();
+
             const button = e.target.classList.contains('edit-room-btn') ? e.target : e.target.parentElement;
             const roomId = button.getAttribute('data-room-id');
-            console.log('Editing room:', roomId);
-            editRoom(roomId);
+
+            console.log('Edit room clicked, roomId:', roomId);
+
+            if (roomId) {
+                // Прямий перехід на сторінку редагування
+                window.location.href = '/BuildMaster/calculator/room-edit-services/' + roomId;
+            } else {
+                console.error('Room ID not found');
+                showError('Ідентифікатор кімнати не знайдено');
+            }
         }
 
+        // Обробка кнопки видалення кімнати
         if (e.target.classList.contains('remove-room-btn') || e.target.parentElement.classList.contains('remove-room-btn')) {
+            e.preventDefault();
+
             const button = e.target.classList.contains('remove-room-btn') ? e.target : e.target.parentElement;
             const roomId = button.getAttribute('data-room-id');
 
             if (confirm('Ви впевнені, що хочете видалити цю кімнату з замовлення?')) {
-                console.log('Removing room:', roomId);
-                removeRoom(roomId);
+                // Показуємо індикатор завантаження
+                button.disabled = true;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+                // Відправляємо запит на видалення
+                fetch('/BuildMaster/calculator/remove-room', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        room_id: roomId
+                    })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Перезавантажуємо сторінку для оновлення списку кімнат
+                            window.location.reload();
+                        } else {
+                            showError(data.error || 'Помилка видалення кімнати');
+                            // Повертаємо кнопку в нормальний стан
+                            button.disabled = false;
+                            button.innerHTML = '<i class="fas fa-trash"></i>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Remove room error:', error);
+                        showError('Помилка з\'єднання з сервером');
+                        // Повертаємо кнопку в нормальний стан
+                        button.disabled = false;
+                        button.innerHTML = '<i class="fas fa-trash"></i>';
+                    });
             }
         }
     });
 
-    // Функція редагування кімнати
-    function editRoom(roomId) {
-        console.log('Edit room function called with ID:', roomId);
-
-        fetch('/BuildMaster/calculator/edit-room', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ room_id: roomId })
-        })
-            .then(response => {
-                console.log('Edit room response status:', response.status);
-                return response.json();
-            })
-            .then(data => {
-                console.log('Edit room response:', data);
-
-                if (data.success) {
-                    window.location.href = data.redirect_url;
-                } else {
-                    showError(data.error || 'Помилка редагування кімнати');
-                }
-            })
-            .catch(error => {
-                console.error('Edit room error:', error);
-                showError('Помилка з\'єднання з сервером');
-            });
-    }
-
-    // Функція видалення кімнати
-    function removeRoom(roomId) {
-        console.log('Remove room function called with ID:', roomId);
-
-        fetch('/BuildMaster/calculator/remove-room', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ room_id: roomId })
-        })
-            .then(response => {
-                console.log('Remove room response status:', response.status);
-                return response.json();
-            })
-            .then(data => {
-                console.log('Remove room response:', data);
-
-                if (data.success) {
-                    // Перезавантажуємо сторінку для оновлення списку
-                    window.location.reload();
-                } else {
-                    showError(data.error || 'Помилка видалення кімнати');
-                }
-            })
-            .catch(error => {
-                console.error('Remove room error:', error);
-                showError('Помилка з\'єднання з сервером');
-            });
-    }
-
-    // Функція показу помилки
+    // Функція відображення помилок
     function showError(message) {
         console.log('Showing error:', message);
         document.getElementById('error-message').textContent = message;
@@ -251,7 +249,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const buttons = document.querySelectorAll('.primary-btn, .secondary-btn, .edit-room-btn, .remove-room-btn');
     buttons.forEach(button => {
         button.addEventListener('mouseenter', function() {
-            this.style.transform = 'translateY(-2px)';
+            if (!this.disabled) {
+                this.style.transform = 'translateY(-2px)';
+            }
         });
 
         button.addEventListener('mouseleave', function() {
@@ -259,7 +259,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Автозаповнення полів з localStorage (якщо користувач раніше щось вводив)
+    // Автозаповнення полів з localStorage
     const guestNameField = document.getElementById('guest-name');
     const guestEmailField = document.getElementById('guest-email');
     const guestPhoneField = document.getElementById('guest-phone');

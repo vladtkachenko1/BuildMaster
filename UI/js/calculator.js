@@ -711,7 +711,79 @@ const rippleCSS = `
         }
     }
 `;
+document.addEventListener('DOMContentLoaded', function() {
+    // Перевірка режиму редагування
+    const isEditMode = new URLSearchParams(window.location.search).has('edit');
 
+    if (isEditMode) {
+        // Отримуємо дані для редагування
+        fetch('/BuildMaster/calculator/get-editing-data', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.roomData) {
+                    fillEditingForm(data.roomData);
+                }
+            })
+            .catch(error => {
+                console.error('Error loading editing data:', error);
+            });
+    }
+});
+
+function fillEditingForm(roomData) {
+    // Заповнюємо тип кімнати
+    const roomTypeSelect = document.getElementById('room-type');
+    if (roomTypeSelect && roomData.room_type_id) {
+        roomTypeSelect.value = roomData.room_type_id;
+        roomTypeSelect.dispatchEvent(new Event('change'));
+    }
+
+    // Заповнюємо назву кімнати
+    const roomNameInput = document.getElementById('room-name');
+    if (roomNameInput && roomData.room_name) {
+        roomNameInput.value = roomData.room_name;
+    }
+
+    // Заповнюємо площі
+    const wallAreaInput = document.getElementById('wall-area');
+    const floorAreaInput = document.getElementById('floor-area');
+
+    if (wallAreaInput && roomData.wall_area) {
+        wallAreaInput.value = roomData.wall_area;
+    }
+
+    if (floorAreaInput && roomData.floor_area) {
+        floorAreaInput.value = roomData.floor_area;
+    }
+
+    // Позначаємо обрані послуги (це буде працювати після завантаження послуг)
+    if (roomData.selected_services && roomData.selected_services.length > 0) {
+        setTimeout(() => {
+            markSelectedServices(roomData.selected_services);
+        }, 1000);
+    }
+
+    // Змінюємо текст кнопки
+    const submitButton = document.querySelector('.calculator-actions .primary-btn');
+    if (submitButton) {
+        submitButton.innerHTML = '<i class="fas fa-save"></i> Зберегти зміни';
+    }
+}
+
+function markSelectedServices(selectedServices) {
+    selectedServices.forEach(service => {
+        const serviceCheckbox = document.querySelector(`input[data-service-id="${service.service_id}"]`);
+        if (serviceCheckbox) {
+            serviceCheckbox.checked = true;
+            serviceCheckbox.dispatchEvent(new Event('change'));
+        }
+    });
+}
 const style = document.createElement('style');
 style.textContent = rippleCSS;
 document.head.appendChild(style);

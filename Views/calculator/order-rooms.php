@@ -8,6 +8,10 @@ if (!isset($totalAmount) && isset($orderRooms)) {
     }
     error_log("Calculated totalAmount in view: " . $totalAmount);
 }
+
+// Перевіряємо чи є режим редагування
+$isEditingMode = isset($_SESSION['editing_room_id']);
+$editingRoomId = $_SESSION['editing_room_id'] ?? null;
 ?>
 <!DOCTYPE html>
 <html lang="uk">
@@ -28,7 +32,13 @@ if (!isset($totalAmount) && isset($orderRooms)) {
                 <i class="fas fa-shopping-cart"></i>
                 <h1>Ваше замовлення</h1>
             </div>
-            <p class="subtitle">Перегляньте та редагуйте список кімнат для ремонту</p>
+            <p class="subtitle">
+                <?php if ($isEditingMode): ?>
+                    Режим редагування кімнати
+                <?php else: ?>
+                    Перегляньте та редагуйте список кімнат для ремонту
+                <?php endif; ?>
+            </p>
         </div>
     </header>
 
@@ -40,11 +50,19 @@ if (!isset($totalAmount) && isset($orderRooms)) {
                     <h2>
                         <i class="fas fa-home"></i>
                         Кімнати для ремонту
+                        <?php if ($isEditingMode): ?>
+                            <span class="editing-badge">
+                                <i class="fas fa-edit"></i>
+                                Редагування
+                            </span>
+                        <?php endif; ?>
                     </h2>
-                    <button id="add-room-btn" class="secondary-btn">
-                        <i class="fas fa-plus"></i>
-                        Додати кімнату
-                    </button>
+                    <?php if (!$isEditingMode): ?>
+                        <button id="add-room-btn" class="secondary-btn">
+                            <i class="fas fa-plus"></i>
+                            Додати кімнату
+                        </button>
+                    <?php endif; ?>
                 </div>
 
                 <div class="rooms-list" id="rooms-list">

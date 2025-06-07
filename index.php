@@ -354,7 +354,146 @@ switch ($path) {
     case '/calculator/update-room':
         header('Location: /BuildMaster/calculator/update-room-services');
         exit;
+// ================================
+// ДОДАТКОВІ МЕТОДИ КІМНАТ (доповнення)
+// ================================
 
+    case '/calculator/room-edit-services':
+        // Обробка редагування кімнати з послугами (GET запит з ID в параметрах)
+        executeController(function() use ($database) {
+            $roomId = $_GET['id'] ?? $_GET['room_id'] ?? null;
+            if (!$roomId) {
+                header('Location: /BuildMaster/calculator/order-rooms');
+                exit;
+            }
+
+            if (class_exists('RoomEditController')) {
+                $controller = new RoomEditController($database);
+                $controller->editRoomServices($roomId);
+            } else {
+                // Fallback до OrderController якщо RoomEditController не існує
+                $controller = new OrderController($database);
+                if (method_exists($controller, 'editRoomServices')) {
+                    $controller->editRoomServices($roomId);
+                } else {
+                    header('Location: /BuildMaster/calculator/order-rooms');
+                    exit;
+                }
+            }
+        }, 'Помилка завантаження сторінки редагування кімнати');
+        break;
+
+    case (preg_match('/^\/calculator\/room-edit-services\/(\d+)$/', $path, $matches) ? true : false):
+        // Обробка редагування кімнати з ID в URL: /calculator/room-edit-services/123
+        executeController(function() use ($database, $matches) {
+            $roomId = $matches[1];
+
+            if (class_exists('RoomEditController')) {
+                $controller = new RoomEditController($database);
+                $controller->editRoomServices($roomId);
+            } else {
+                // Fallback до OrderController якщо RoomEditController не існує
+                $controller = new OrderController($database);
+                if (method_exists($controller, 'editRoomServices')) {
+                    $controller->editRoomServices($roomId);
+                } else {
+                    header('Location: /BuildMaster/calculator/order-rooms');
+                    exit;
+                }
+            }
+        }, 'Помилка завантаження сторінки редагування кімнати');
+        break;
+
+    case '/calculator/update-room-with-services':
+        // Оновлення кімнати з послугами
+        executeController(function() use ($database) {
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                header('Content-Type: application/json');
+                http_response_code(405);
+                echo json_encode(['error' => 'Метод не дозволений']);
+                return;
+            }
+
+            if (class_exists('RoomEditController')) {
+                $controller = new RoomEditController($database);
+                $controller->updateRoomWithServices();
+            } else {
+                // Fallback до OrderController
+                $controller = new OrderController($database);
+                if (method_exists($controller, 'updateRoomWithServices')) {
+                    $controller->updateRoomWithServices();
+                } else {
+                    header('Content-Type: application/json');
+                    http_response_code(404);
+                    echo json_encode(['error' => 'Метод не реалізовано']);
+                }
+            }
+        }, 'Помилка оновлення кімнати з послугами');
+        break;
+
+    case '/calculator/delete-room':
+        // Видалення кімнати
+        executeController(function() use ($database) {
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                header('Content-Type: application/json');
+                http_response_code(405);
+                echo json_encode(['error' => 'Метод не дозволений']);
+                return;
+            }
+
+            if (class_exists('RoomEditController')) {
+                $controller = new RoomEditController($database);
+                $controller->deleteRoom();
+            } else {
+                // Fallback до OrderController
+                $controller = new OrderController($database);
+                if (method_exists($controller, 'deleteRoom')) {
+                    $controller->deleteRoom();
+                } else {
+                    // Використовуємо існуючий метод removeRoom
+                    $controller->removeRoom();
+                }
+            }
+        }, 'Помилка видалення кімнати');
+        break;
+    case '/calculator/room-edit-services':
+        executeController(function() use ($database) {
+            $roomId = $_GET['id'] ?? $_GET['room_id'] ?? null;
+            if (!$roomId) {
+                header('Location: /BuildMaster/calculator/order-rooms');
+                exit;
+            }
+
+            // Отримуємо дані кімнати для редагування
+            $controller = new OrderController($database);
+            $roomData = $controller->getRoomForEdit($roomId);
+
+            if (!$roomData) {
+                header('Location: /BuildMaster/calculator/order-rooms');
+                exit;
+            }
+
+            // Включаємо view для редагування кімнати
+            include __DIR__ . '/Views/calculator/room-edit.php';
+        }, 'Помилка завантаження сторінки редагування кімнати');
+        break;
+    case (preg_match('/^\/calculator\/room-edit-services\/(\d+)$/', $path, $matches) ? true : false):
+        executeController(function() use ($database, $matches) {
+            $roomId = $matches[1];
+
+            // Отримуємо дані кімнати для редагування
+            $controller = new OrderController($database);
+            $roomData = $controller->getRoomForEdit($roomId);
+
+            if (!$roomData) {
+                header('Location: /BuildMaster/calculator/order-rooms');
+                exit;
+            }
+
+            // Включаємо view для редагування кімнати
+            include __DIR__ . '/Views/calculator/room-edit.php';
+        }, 'Помилка завантаження сторінки редагування кімнати');
+        break;
     // ================================
     // 404 - СТОРІНКУ НЕ ЗНАЙДЕНО
     // ================================

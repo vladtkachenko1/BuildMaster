@@ -375,7 +375,7 @@ class ServiceCalculatorController
     /**
      * Оновлює загальну суму замовлення
      */
-    private function updateOrderTotal($orderId)
+     function updateOrderTotal($orderId)
     {
         try {
             // Використовуємо обчислювальне поле total_price з таблиці order_room_services
