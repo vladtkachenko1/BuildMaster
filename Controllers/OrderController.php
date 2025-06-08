@@ -14,7 +14,7 @@ class OrderController
     }
 
     // Виправлення методу updateOrderTotalAmount
-    private function updateOrderTotalAmount($orderId)
+    public  function updateOrderTotalAmount($orderId)
     {
         try {
             // ВИПРАВЛЕНО: обчислюємо загальну суму через quantity * unit_price
@@ -228,9 +228,6 @@ class OrderController
             echo json_encode(['error' => 'Помилка видалення кімнати']);
         }
     }
-
-    // **ВИДАЛЕНО** - метод editRoom (тепер обробляється в іншому контролері)
-
     public function createOrderForNewRoom()
     {
         header('Content-Type: application/json');
@@ -396,11 +393,6 @@ class OrderController
             }
         }
     }
-
-    // **ВИДАЛЕНО** - метод updateRoomWithServices (тепер обробляється в іншому контролері)
-
-    // **ВИДАЛЕНО** - метод getRoomForEdit (тепер обробляється в іншому контролері)
-
     public function completeOrder()
     {
         header('Content-Type: application/json; charset=utf-8');
@@ -488,7 +480,190 @@ class OrderController
             echo json_encode(['error' => 'Помилка завершення замовлення: ' . $e->getMessage()]);
         }
     }
+// Виправлений метод editRoom в OrderController
+    public function editRoom($roomId)
+    {
+        // Валідація roomId
+        if (!$roomId || !is_numeric($roomId) || intval($roomId) <= 0) {
+            header('Location: /BuildMaster/calculator/order-rooms');
+            exit;
+        }
 
+        // Створюємо екземпляр RoomEditController і передаємо управління
+        $roomEditController = new \BuildMaster\Controllers\RoomEditController($this->database);
+        $roomEditController->editRoom(intval($roomId));
+    }
+    private function getSelectedServices($roomId)
+    {
+        try {
+            $stmt = $this->db->prepare("
+            SELECT 
+                ors.service_id,
+                ors.quantity,
+                ors.unit_price,
+                (ors.quantity * ors.unit_price) as total_price,
+                s.name as service_name,
+                s.price_per_sqm,
+                a.area_type
+            FROM order_room_services ors
+            JOIN services s ON ors.service_id = s.id
+            LEFT JOIN service_area sa ON s.id = sa.service_id
+            LEFT JOIN areas a ON sa.area_id = a.id
+            WHERE ors.order_room_id = ? AND ors.is_selected = 1
+        ");
+            $stmt->execute([$roomId]);
+            return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        } catch (\Exception $e) {
+            error_log("Error getting selected services: " . $e->getMessage());
+            return [];
+        }
+    }
+    public function updateRoomWithServices()
+    {
+        header('Content-Type: application/json');
+
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+
+        try {
+            $input = json_decode(file_get_contents('php://input'), true);
+
+            if (!$input) {
+                throw new \Exception('Немає даних для оновлення');
+            }
+
+            $roomId = $input['room_id'] ?? null;
+            $roomName = $input['room_name'] ?? null;
+            $wallArea = floatval($input['wall_area'] ?? 0);
+            $floorArea = floatval($input['floor_area'] ?? 0);
+            $selectedServices = $input['selected_services'] ?? [];
+
+            if (!$roomId || !$this->hasAccessToRoom($roomId)) {
+                throw new \Exception('Доступ заборонено');
+            }
+
+            if (!$roomName || $wallArea <= 0 || $floorArea <= 0) {
+                throw new \Exception('Не всі обов\'язкові поля заповнені');
+            }
+
+            $this->db->beginTransaction();
+
+            // Оновлюємо дані кімнати
+            $stmt = $this->db->prepare("
+            UPDATE order_rooms 
+            SET room_name = ?, wall_area = ?, floor_area = ?
+            WHERE id = ?
+        ");
+
+            if (!$stmt->execute([$roomName, $wallArea, $floorArea, $roomId])) {
+                throw new \Exception('Помилка оновлення кімнати');
+            }
+
+            // Видаляємо старі послуги
+            $stmt = $this->db->prepare("DELETE FROM order_room_services WHERE order_room_id = ?");
+            $stmt->execute([$roomId]);
+
+            // Додаємо нові послуги
+            $totalRoomAmount = 0;
+            $addedServicesCount = 0;
+
+            foreach ($selectedServices as $serviceData) {
+                $serviceId = $serviceData['id'] ?? null;
+                $areaType = $serviceData['area_type'] ?? null;
+                $pricePerSqm = floatval($serviceData['price_per_sqm'] ?? $serviceData['price'] ?? 0);
+
+                if (!$serviceId || $pricePerSqm <= 0) {
+                    continue;
+                }
+
+                // Визначаємо кількість (площу) для послуги
+                $quantity = $this->getQuantityForService($serviceId, $areaType, $wallArea, $floorArea);
+
+                if ($quantity <= 0) {
+                    continue;
+                }
+
+                $totalPrice = $pricePerSqm * $quantity;
+                $totalRoomAmount += $totalPrice;
+
+                // Додаємо послугу
+                $stmt = $this->db->prepare("
+                INSERT INTO order_room_services 
+                (order_room_id, service_id, quantity, unit_price, is_selected, created_at) 
+                VALUES (?, ?, ?, ?, 1, NOW())
+            ");
+
+                if ($stmt->execute([$roomId, $serviceId, $quantity, $pricePerSqm])) {
+                    $addedServicesCount++;
+                }
+            }
+
+            // Оновлюємо загальну суму замовлення
+            $roomData = $this->getRoomForEdit($roomId);
+            $this->updateOrderTotalAmount($roomData['order_id']);
+
+            $this->db->commit();
+
+            echo json_encode([
+                'success' => true,
+                'room_id' => $roomId,
+                'room_total' => $totalRoomAmount,
+                'services_added' => $addedServicesCount,
+                'message' => 'Кімнату успішно оновлено',
+                'redirect_url' => '/BuildMaster/calculator/order-rooms'
+            ]);
+
+        } catch (\Exception $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            error_log("Error updating room with services: " . $e->getMessage());
+            echo json_encode([
+                'success' => false,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+    private function getQuantityForService($serviceId, $areaType, $wallArea, $floorArea)
+    {
+        if ($areaType) {
+            return $this->getAreaByAreaType($areaType, $wallArea, $floorArea);
+        }
+
+        // Fallback - визначаємо за назвою послуги
+        try {
+            $stmt = $this->db->prepare("SELECT name FROM services WHERE id = ?");
+            $stmt->execute([$serviceId]);
+            $service = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            if ($service) {
+                $serviceName = strtolower($service['name']);
+                if (strpos($serviceName, 'підлог') !== false ||
+                    strpos($serviceName, 'пол') !== false ||
+                    strpos($serviceName, 'стел') !== false ||
+                    strpos($serviceName, 'потолок') !== false) {
+                    return $floorArea;
+                }
+            }
+        } catch (\Exception $e) {
+            error_log("Error determining service quantity: " . $e->getMessage());
+        }
+
+        return $wallArea;
+    }
+    private function getAreaByAreaType($areaType, $wallArea, $floorArea)
+    {
+        switch ($areaType) {
+            case 'walls':
+                return (float)$wallArea;
+            case 'floor':
+            case 'ceiling':
+                return (float)$floorArea;
+            default:
+                return (float)$wallArea;
+        }
+    }
     // Допоміжні методи
     private function getRoomTypes()
     {
@@ -500,7 +675,6 @@ class OrderController
             return [];
         }
     }
-
     private function getRoomTypeById($id)
     {
         try {
@@ -551,6 +725,91 @@ class OrderController
             error_log("ERROR in orderSuccess: " . $e->getMessage());
             header('Location: /BuildMaster/calculator');
             exit;
+        }
+    }
+    public function getRoomForEdit($roomId)
+    {
+        try {
+            $stmt = $this->db->prepare("
+            SELECT 
+                or.id,
+                or.room_name,
+                or.wall_area,
+                or.floor_area,
+                or.room_type_id,
+                rt.name as room_type_name,
+                o.id as order_id,
+                o.user_id
+            FROM order_rooms or
+            JOIN room_types rt ON or.room_type_id = rt.id
+            JOIN orders o ON or.order_id = o.id
+            WHERE or.id = ?
+        ");
+            $stmt->execute([$roomId]);
+            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            if ($result) {
+                error_log("Room data retrieved successfully for ID: " . $roomId);
+            } else {
+                error_log("No room data found for ID: " . $roomId);
+            }
+
+            return $result;
+        } catch (\Exception $e) {
+            error_log("Error getting room data: " . $e->getMessage());
+            return null;
+        }
+    }
+    private function hasAccessToRoom($roomId)
+    {
+        try {
+            $userId = $_SESSION['user']['id'] ?? null;
+            $currentOrderId = $_SESSION['current_order_id'] ?? null;
+
+            error_log("Checking access - User ID: " . ($userId ?? 'null') . ", Current Order ID: " . ($currentOrderId ?? 'null'));
+
+            // Отримуємо інформацію про кімнату та замовлення
+            $stmt = $this->db->prepare("
+            SELECT 
+                ord_room.id as room_id,
+                ord_room.order_id,
+                o.user_id as order_user_id,
+                o.status as order_status
+            FROM order_rooms ord_room
+            JOIN orders o ON ord_room.order_id = o.id
+            WHERE ord_room.id = ?
+        ");
+            $stmt->execute([$roomId]);
+            $roomInfo = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            if (!$roomInfo) {
+                error_log("Room not found: " . $roomId);
+                return false;
+            }
+
+            // Перевіряємо доступ
+            $hasAccess = false;
+
+            // Якщо є користувач і він власник замовлення
+            if ($userId && $roomInfo['order_user_id'] == $userId) {
+                $hasAccess = true;
+            }
+            // Якщо є поточне замовлення і воно співпадає
+            elseif ($currentOrderId && $roomInfo['order_id'] == $currentOrderId) {
+                $hasAccess = true;
+            }
+            // Якщо замовлення має статус draft і немає користувача (гостьове замовлення)
+            elseif ($roomInfo['order_status'] === 'draft' && is_null($roomInfo['order_user_id'])) {
+                $hasAccess = true;
+                // Встановлюємо поточне замовлення
+                $_SESSION['current_order_id'] = $roomInfo['order_id'];
+            }
+
+            return $hasAccess;
+
+        } catch (\Exception $e) {
+            error_log("Error checking room access: " . $e->getMessage());
+            return false;
         }
     }
 }
