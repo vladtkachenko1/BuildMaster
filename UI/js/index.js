@@ -25,7 +25,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
-
+document.addEventListener('DOMContentLoaded', function() {
+    const adminLink = document.getElementById('adminpanel');
+    if (adminLink) {
+        adminLink.addEventListener('click', function(event) {
+            event.preventDefault(); // Зупиняє стандартну поведінку <a>
+            window.location.href = '/BuildMaster/admin'; // Виправлено шлях
+        });
+    }
+});
 let currentSlideIndex = 0;
 const slides = document.querySelectorAll('.portfolio-slide');
 const dots = document.querySelectorAll('.slider-dot');
@@ -101,36 +109,66 @@ window.addEventListener('click', function (event) {
 document.getElementById('contactForm')?.addEventListener('submit', async function (e) {
     e.preventDefault();
 
-    const formData = new FormData(this);
-    const submitBtn = this.querySelector('button[type="submit"]');
+    const form = this;
+    const formData = new FormData(form);
+    const name = form.name.value.trim();
+    const phone = form.phone.value.trim();
+    const email = form.email.value.trim();
+    const errorTargetId = 'contactFormError';
+
+    // Очистити попередні помилки
+    showError('', errorTargetId);
+
+    // Валідація
+    if (name.length < 2) {
+        showError("Будь ласка, введіть коректне ім'я (не менше 2 символів).", errorTargetId);
+        return;
+    }
+
+    if (!/^\+?\d{9,15}$/.test(phone)) {
+        showError("Введіть дійсний номер телефону (лише цифри, від 9 до 15 символів).", errorTargetId);
+        return;
+    }
+
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        showError("Введіть коректний email або залиште це поле порожнім.", errorTargetId);
+        return;
+    }
+
+    const submitBtn = form.querySelector('button[type="submit"]');
     const originalText = submitBtn.innerHTML;
 
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Відправляється...';
     submitBtn.disabled = true;
 
     try {
-        const response = await fetch('controllers/HomeController.php?action=contact', {
+        const response = await fetch('controllers/contact-handler.php', {
             method: 'POST',
             body: formData
         });
+
+        if (!response.ok) {
+            throw new Error('HTTP error ' + response.status);
+        }
 
         const result = await response.json();
 
         if (result.success) {
             alert('Дякуємо! Ваше повідомлення відправлено. Ми зв\'яжемося з вами найближчим часом.');
-            this.reset();
-            closeModal();
+            form.reset();
+            closeModal?.();
         } else {
-            alert('Помилка при відправці повідомлення. Спробуйте ще раз.');
+            showError(result.message || 'Помилка при відправці повідомлення. Спробуйте ще раз.', errorTargetId);
         }
     } catch (error) {
         console.error('Error:', error);
-        alert('Помилка при відправці повідомлення. Спробуйте ще раз.');
+        showError('Сталася помилка при з’єднанні з сервером.', errorTargetId);
     } finally {
         submitBtn.innerHTML = originalText;
         submitBtn.disabled = false;
     }
 });
+
 
 document.querySelectorAll('a[href^="#"]').forEach(anchor => {
     anchor.addEventListener('click', function (e) {

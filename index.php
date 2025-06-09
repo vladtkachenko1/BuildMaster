@@ -181,16 +181,6 @@ else {
         // АУТЕНТИФІКАЦІЯ
         // ================================
 
-        case '/login':
-            executeController(function() {
-                if (class_exists('AuthController')) {
-                    $controller = new AuthController();
-                    $controller->login();
-                } else {
-                    echo "AuthController не знайдено";
-                }
-            }, 'Помилка завантаження сторінки входу');
-            break;
 
         case '/register':
             executeController(function() {
@@ -208,22 +198,27 @@ else {
         // ================================
 
         case '/admin':
-            if (!isset($_SESSION['user_id']) || !$_SESSION['is_admin']) {
+            // ВИПРАВЛЕНО: Використовуємо AuthController для перевірки
+            require_once __DIR__ . '/Controllers/AuthController.php';
+            $auth = new AuthController();
+
+            if (!$auth->isAdmin()) {
                 header('Location: /BuildMaster/login');
                 exit;
             }
 
             executeController(function() {
+                require_once __DIR__ . '/Controllers/AdminController.php';
+
                 if (class_exists('AdminController')) {
                     $controller = new AdminController();
-                    $controller->dashboard();
+                    $controller->handleRequest();
                 } else {
                     echo "AdminController не знайдено";
                 }
             }, 'Помилка завантаження адміністративної панелі');
             break;
-
-        // ================================
+            // ================================
         // КАЛЬКУЛЯТОР - ГОЛОВНІ СТОРІНКИ
         // ================================
 

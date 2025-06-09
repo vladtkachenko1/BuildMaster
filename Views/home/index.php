@@ -4,6 +4,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 $isLoggedIn = isset($_SESSION['user']) && $_SESSION['user']['authenticated'] === true;
+$isAdmin = $isLoggedIn && isset($_SESSION['user']['is_admin']) && $_SESSION['user']['is_admin'] === true;
 ?>
 
 <!DOCTYPE html>
@@ -14,7 +15,6 @@ $isLoggedIn = isset($_SESSION['user']) && $_SESSION['user']['authenticated'] ===
     <title>BuildMaster - Професійні будівельні та ремонтні послуги</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/BuildMaster/UI/css/index.css">
-
 </head>
 <body>
 
@@ -23,6 +23,9 @@ $isLoggedIn = isset($_SESSION['user']) && $_SESSION['user']['authenticated'] ===
     <div class="nav-container">
         <div class="logo">BuildMaster</div>
         <ul class="nav-links">
+            <?php if ($isAdmin): ?>
+                <li><a href="#" id="adminpanel"><i class="fas fa-cogs"></i> Адмін панель</a></li>
+            <?php endif; ?>
             <li><a href="#home">Головна</a></li>
             <li><a href="#services">Послуги</a></li>
             <li><a href="#portfolio">Портфоліо</a></li>
@@ -34,7 +37,6 @@ $isLoggedIn = isset($_SESSION['user']) && $_SESSION['user']['authenticated'] ===
                 <li><a href="#" class="login-btn" onclick="openAuthModal('navbar')"><i class="fas fa-user"></i> Увійти</a></li>
             <?php endif; ?>
         </ul>
-
     </div>
 </nav>
 
@@ -195,7 +197,6 @@ $isLoggedIn = isset($_SESSION['user']) && $_SESSION['user']['authenticated'] ===
                     <i class="fas fa-calculator"></i>
                     Розрахувати вартість
                 </button>
-
             </div>
         </div>
     </div>
@@ -206,7 +207,7 @@ $isLoggedIn = isset($_SESSION['user']) && $_SESSION['user']['authenticated'] ===
     <div class="modal-content">
         <span class="close" onclick="closeModal()">&times;</span>
         <h2>Зв'яжіться з нами</h2>
-        <form id="contactForm">
+        <form id="contactForm" method="post">
             <div class="form-group">
                 <label for="name">Ваше ім'я *</label>
                 <input type="text" id="name" name="name" required>
@@ -228,8 +229,10 @@ $isLoggedIn = isset($_SESSION['user']) && $_SESSION['user']['authenticated'] ===
                 Відправити повідомлення
             </button>
         </form>
+        <div id="contactFormError" class="error-message" style="display: none;"></div>
     </div>
 </div>
+
 <!-- Вікно входу -->
 <div id="loginModal" class="modal">
     <div class="modal-content">
@@ -248,9 +251,9 @@ $isLoggedIn = isset($_SESSION['user']) && $_SESSION['user']['authenticated'] ===
         </form>
         <p class="switch-link">Немає акаунту? <a href="#" onclick="switchToRegister()">Зареєструватися</a></p>
         <div id="loginErrorMsg" class="error-message" style="display: none;"></div>
-
     </div>
 </div>
+
 <!-- Вікно реєстрації -->
 <div id="registerModal" class="modal">
     <div class="modal-content">
@@ -260,7 +263,7 @@ $isLoggedIn = isset($_SESSION['user']) && $_SESSION['user']['authenticated'] ===
             <div id="registerErrorMsg" class="error-message" style="display:none;"></div>
 
             <div class="form-group">
-                <label for="registerFirstName">Ім’я *</label>
+                <label for="registerFirstName">Ім'я *</label>
                 <input type="text" id="registerFirstName" name="first_name" required>
             </div>
             <div class="form-group">
@@ -281,15 +284,12 @@ $isLoggedIn = isset($_SESSION['user']) && $_SESSION['user']['authenticated'] ===
             </div>
             <button type="submit">Зареєструватися</button>
             <div id="registerErrorMsg" class="error-message" style="display: none;"></div>
-
         </form>
         <p class="switch-link"><a href="#" onclick="switchToLogin()">← Повернутися до входу</a></p>
     </div>
 </div>
 
-
 <script src="UI/js/index.js"></script>
 
 </body>
-
 </html>
