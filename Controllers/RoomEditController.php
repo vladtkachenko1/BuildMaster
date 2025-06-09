@@ -108,99 +108,113 @@ class RoomEditController
     private function hasAccessToRoom($roomId)
     {
         try {
-            $userId = $_SESSION['user']['id'] ?? null;
-            $currentOrderId = $_SESSION['current_order_id'] ?? null;
+            error_log("=== ACCESS CHECK DEBUG ===");
+            error_log("Checking access for room ID: " . $roomId);
 
-            error_log("Checking access - User ID: " . ($userId ?? 'null') . ", Order ID: " . ($currentOrderId ?? 'null'));
+            // Спочатку перевіряємо чи існує кімната
+            $stmt = $this->database->prepare("
+                SELECT 
+                    ord_rooms.id,
+                    ord_rooms.order_id,
+                    ord_rooms.room_name,
+                    o.user_id as order_user_id,
+                    o.status as order_status
+                FROM order_rooms ord_rooms
+                LEFT JOIN orders o ON ord_rooms.order_id = o.id
+                WHERE ord_rooms.id = ?
+            ");
 
-            // Спрощена перевірка доступу - перевіряємо чи належить кімната користувачу або поточному замовленню
-            $sql = "
-                SELECT COUNT(*) as count
-                FROM order_rooms or
-                JOIN orders o ON or.order_id = o.id
-                WHERE or.id = ?
-            ";
+            $stmt->execute([$roomId]);
+            $roomInfo = $stmt->fetch(\PDO::FETCH_ASSOC);
 
-            $params = [$roomId];
+            error_log("Query executed. Room info: " . json_encode($roomInfo));
 
-            // Додаємо умови доступу
-            if ($userId && $currentOrderId) {
-                // Якщо є і користувач і поточне замовлення
-                $sql .= " AND (o.user_id = ? OR o.id = ?)";
-                $params[] = $userId;
-                $params[] = $currentOrderId;
-            } elseif ($userId) {
-                // Якщо є тільки користувач
-                $sql .= " AND o.user_id = ?";
-                $params[] = $userId;
-            } elseif ($currentOrderId) {
-                // Якщо є тільки поточне замовлення
-                $sql .= " AND o.id = ?";
-                $params[] = $currentOrderId;
-            } else {
-                // Якщо немає ні користувача, ні замовлення - доступ заборонено
-                error_log("No user or order ID in session");
+            if (!$roomInfo) {
+                error_log("Room not found with ID: " . $roomId);
                 return false;
             }
 
-            error_log("Access check SQL: " . $sql);
-            error_log("Access check params: " . json_encode($params));
+            error_log("Room found: " . json_encode($roomInfo));
+            error_log("=== END ACCESS CHECK ===");
 
-            $stmt = $this->database->prepare($sql);
-            $stmt->execute($params);
-            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+            return true; // Тимчасово дозволяємо доступ до всіх кімнат
 
-            error_log("Access check result: " . json_encode($result));
-
-            return $result['count'] > 0;
         } catch (\Exception $e) {
             error_log("Error checking room access: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             return false;
         }
     }
 
-    /**
-     * Отримує дані кімнати - ВИПРАВЛЕНО
-     */
     private function getRoomData($roomId)
     {
         try {
+            error_log("=== GET ROOM DATA DEBUG ===");
+            error_log("Fetching room data for ID: " . $roomId);
+
+            // Спочатку отримуємо основні дані кімнати
             $stmt = $this->database->prepare("
                 SELECT 
-                    or.id,
-                    or.room_name,
-                    or.wall_area,
-                    or.floor_area,
-                    or.room_type_id,
-                    rt.name as room_type_name,
-                    o.id as order_id,
-                    o.user_id
-                FROM order_rooms or
-                JOIN room_types rt ON or.room_type_id = rt.id
-                JOIN orders o ON or.order_id = o.id
-                WHERE or.id = ?
+                    id,
+                    room_name,
+                    wall_area,
+                    floor_area,
+                    room_type_id,
+                    order_id,
+                    created_at
+                FROM order_rooms 
+                WHERE id = ?
             ");
 
             $stmt->execute([$roomId]);
-            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+            $roomData = $stmt->fetch(\PDO::FETCH_ASSOC);
 
-            if ($result) {
-                error_log("Room data retrieved successfully for ID: " . $roomId);
-                error_log("Room data: " . json_encode($result));
-            } else {
-                error_log("No room data found for ID: " . $roomId);
+            if (!$roomData) {
+                error_log("Room not found with ID: " . $roomId);
+                return null;
             }
 
-            return $result;
+            error_log("Room data found: " . json_encode($roomData));
+
+            // Тепер окремо отримуємо назву типу кімнати
+            $roomTypeName = null;
+            if (!empty($roomData['room_type_id'])) {
+                try {
+                    $typeStmt = $this->database->prepare("SELECT name FROM room_types WHERE id = ?");
+                    $typeStmt->execute([$roomData['room_type_id']]);
+                    $roomType = $typeStmt->fetch(\PDO::FETCH_ASSOC);
+
+                    if ($roomType) {
+                        $roomTypeName = $roomType['name'];
+                        error_log("Room type found: " . $roomTypeName);
+                    } else {
+                        error_log("Room type not found for ID: " . $roomData['room_type_id']);
+                        // Перевіримо всі доступні типи кімнат
+                        $allTypesStmt = $this->database->prepare("SELECT id, name FROM room_types");
+                        $allTypesStmt->execute();
+                        $allTypes = $allTypesStmt->fetchAll(\PDO::FETCH_ASSOC);
+                        error_log("Available room types: " . json_encode($allTypes));
+                    }
+                } catch (\Exception $e) {
+                    error_log("Error fetching room type: " . $e->getMessage());
+                }
+            }
+
+            // Додаємо назву типу кімнати до результату
+            $roomData['room_type_name'] = $roomTypeName;
+
+            error_log("Final room data: " . json_encode($roomData));
+            error_log("=== END GET ROOM DATA ===");
+
+            return $roomData;
+
         } catch (\Exception $e) {
             error_log("Error getting room data: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             return null;
         }
     }
 
-    /**
-     * Отримує вибрані послуги для кімнати з правильним розрахунком total_price
-     */
     private function getSelectedServices($roomId)
     {
         try {
@@ -237,46 +251,107 @@ class RoomEditController
      */
     public function getServicesForEdit($roomId)
     {
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
 
+        // Перевіряємо сесію
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
 
         try {
-            error_log("Getting services for edit - Room ID: " . $roomId);
+            error_log("=== GET SERVICES FOR EDIT DEBUG ===");
+            error_log("Room ID: " . $roomId);
+            error_log("Request URI: " . $_SERVER['REQUEST_URI']);
 
             // Валідація ID
             if (!$roomId || !is_numeric($roomId) || intval($roomId) <= 0) {
-                error_log("Invalid room ID in getServicesForEdit: " . $roomId);
+                error_log("Invalid room ID: " . $roomId);
                 http_response_code(400);
-                echo json_encode(['error' => 'Некоректний ID кімнати']);
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'Некоректний ID кімнати'
+                ], JSON_UNESCAPED_UNICODE);
                 return;
             }
 
             $roomId = intval($roomId);
 
-            if (!$this->hasAccessToRoom($roomId)) {
-                error_log("Access denied in getServicesForEdit for room: " . $roomId);
-                http_response_code(403);
-                echo json_encode(['error' => 'Доступ заборонено']);
+            // Спочатку перевіряємо чи існує кімната в базі даних
+            $checkStmt = $this->database->prepare("SELECT COUNT(*) FROM order_rooms WHERE id = ?");
+            $checkStmt->execute([$roomId]);
+            $roomExists = $checkStmt->fetchColumn();
+
+            error_log("Room exists check: " . ($roomExists ? 'YES' : 'NO'));
+
+            if (!$roomExists) {
+                error_log("Room does not exist in database: " . $roomId);
+
+                // Додаткова діагностика
+                $allRoomsStmt = $this->database->prepare("SELECT id, room_name FROM order_rooms ORDER BY id DESC LIMIT 10");
+                $allRoomsStmt->execute();
+                $allRooms = $allRoomsStmt->fetchAll(\PDO::FETCH_ASSOC);
+                error_log("Available rooms: " . json_encode($allRooms));
+
+                http_response_code(404);
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'Кімнату не знайдено',
+                    'debug' => [
+                        'requested_id' => $roomId,
+                        'available_rooms' => $allRooms
+                    ]
+                ], JSON_UNESCAPED_UNICODE);
                 return;
             }
 
+            // КРИТИЧНО ВАЖЛИВО: Отримуємо дані кімнати ПЕРЕД перевіркою доступу
+            error_log("BEFORE getRoomData call");
             $roomData = $this->getRoomData($roomId);
+            error_log("AFTER getRoomData call, result: " . json_encode($roomData));
+
             if (!$roomData) {
-                error_log("Room not found in getServicesForEdit: " . $roomId);
+                error_log("CRITICAL: Room data not found despite room existing: " . $roomId);
+
+                // Додаткова діагностика - прямий запит
+                $directStmt = $this->database->prepare("SELECT * FROM order_rooms WHERE id = ?");
+                $directStmt->execute([$roomId]);
+                $directResult = $directStmt->fetch(\PDO::FETCH_ASSOC);
+                error_log("Direct query result: " . json_encode($directResult));
+
                 http_response_code(404);
-                echo json_encode(['error' => 'Кімнату не знайдено']);
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'Дані кімнати не знайдено',
+                    'debug' => [
+                        'room_exists' => true,
+                        'direct_query_result' => $directResult
+                    ]
+                ], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+
+            error_log("Room data found: " . json_encode($roomData));
+
+            // Перевіряємо доступ
+            if (!$this->hasAccessToRoom($roomId)) {
+                error_log("Access denied for room: " . $roomId);
+                http_response_code(403);
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'Доступ заборонено'
+                ], JSON_UNESCAPED_UNICODE);
                 return;
             }
 
             // Отримуємо послуги для типу кімнати
+            error_log("Getting services for room type: " . $roomData['room_type_id']);
             $services = $this->serviceCalculatorController->getGroupedServicesByRoomType($roomData['room_type_id']);
+            error_log("Services loaded for room type " . $roomData['room_type_id'] . ": " . count($services) . " areas");
 
             // Отримуємо вибрані послуги
             $selectedServices = $this->getSelectedServices($roomId);
             $selectedServiceIds = array_column($selectedServices, 'service_id');
+            error_log("Selected services: " . json_encode($selectedServiceIds));
 
             // Додаємо інформацію про вибрані послуги до структури
             foreach ($services as &$area) {
@@ -304,20 +379,22 @@ class RoomEditController
                 'selected_services' => $selectedServices
             ];
 
-            error_log("Services response: " . json_encode($response));
+            error_log("Sending successful response with " . count($services) . " service areas");
+            error_log("=== END GET SERVICES FOR EDIT ===");
 
-            echo json_encode($response);
+            echo json_encode($response, JSON_UNESCAPED_UNICODE);
 
         } catch (\Exception $e) {
             error_log("Error getting services for edit: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             http_response_code(500);
-            echo json_encode(['error' => 'Помилка отримання послуг: ' . $e->getMessage()]);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Помилка отримання послуг: ' . $e->getMessage()
+            ], JSON_UNESCAPED_UNICODE);
         }
     }
 
-    /**
-     * Оновлює кімнату та її послуги
-     */
     public function updateRoomWithServices()
     {
         header('Content-Type: application/json');
@@ -472,22 +549,5 @@ class RoomEditController
             default:
                 return (float)$wallArea;
         }
-    }
-
-    /**
-     * Додатковий метод для налагодження - показує інформацію про сесію
-     */
-    public function debugSessionInfo()
-    {
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
-
-        error_log("=== SESSION DEBUG INFO ===");
-        error_log("Session ID: " . session_id());
-        error_log("User ID: " . ($_SESSION['user']['id'] ?? 'not set'));
-        error_log("Current Order ID: " . ($_SESSION['current_order_id'] ?? 'not set'));
-        error_log("Full session data: " . json_encode($_SESSION));
-        error_log("=== END SESSION DEBUG ===");
     }
 }

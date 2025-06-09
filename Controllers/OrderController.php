@@ -12,8 +12,6 @@ class OrderController
     {
         $this->db = $database;
     }
-
-    // Виправлення методу updateOrderTotalAmount
     public  function updateOrderTotalAmount($orderId)
     {
         try {

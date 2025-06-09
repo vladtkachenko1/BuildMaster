@@ -185,8 +185,7 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('Edit room clicked, roomId:', roomId);
 
             if (roomId) {
-                // Прямий перехід на сторінку редагування
-                window.location.href = '/BuildMaster/calculator/room-edit-services/' + roomId;
+                window.location.href = '/BuildMaster/calculator/room-edit/' + roomId;
             } else {
                 console.error('Room ID not found');
                 showError('Ідентифікатор кімнати не знайдено');
