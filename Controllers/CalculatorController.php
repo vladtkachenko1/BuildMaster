@@ -1,24 +1,23 @@
 <?php
+// CalculatorController - виправлена версія
 
 namespace BuildMaster\Controllers;
 
 class CalculatorController
 {
     private $db;
+    private $serviceCalculatorController;
 
     public function __construct($database = null)
     {
         $this->db = $database;
+        // Ініціалізуємо ServiceCalculatorController
+        $this->serviceCalculatorController = new ServiceCalculatorController($database);
+
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
     }
-
-    public function index()
-    {
-        return $this->view('calculator/calculator');
-    }
-
     public function getRoomTypes()
     {
         try {
@@ -39,194 +38,93 @@ class CalculatorController
         }
         exit;
     }
-
     public function getProjectForm()
     {
         return $this->view('calculator/project-form');
     }
 
-    public function createProject()
-    {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => 'Неправильний метод запиту']);
-            exit;
-        }
-
-        $roomTypeId = $_POST['room_type_id'] ?? null;
-        $wallArea = isset($_POST['wall_area']) ? floatval($_POST['wall_area']) : 0;
-        $roomArea = isset($_POST['room_area']) ? floatval($_POST['room_area']) : 0;
-
-        // Валідація
-        if (!$roomTypeId) {
-            header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => 'Оберіть тип кімнати']);
-            exit;
-        }
-
-        if ($wallArea <= 0) {
-            header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => 'Введіть коректну площу стін']);
-            exit;
-        }
-
-        if ($roomArea <= 0) {
-            header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => 'Введіть коректну площу кімнати']);
-            exit;
-        }
-
-        if ($wallArea < $roomArea) {
-            header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => 'Площа стін не може бути менше площі кімнати']);
-            exit;
-        }
-
-        try {
-            if (!$this->db) {
-                throw new \Exception('База даних не підключена');
-            }
-
-            $stmt = $this->db->prepare("SELECT name, slug FROM room_types WHERE id = ?");
-            $stmt->execute([$roomTypeId]);
-            $roomType = $stmt->fetch(\PDO::FETCH_ASSOC);
-
-            if (!$roomType) {
-                throw new \Exception('Тип кімнати не знайдено');
-            }
-
-            // Зберігаємо дані в сесії для подальшого використання
-            $_SESSION['current_project'] = [
-                'room_type_id' => $roomTypeId,
-                'room_type_name' => $roomType['name'],
-                'room_type_slug' => $roomType['slug'],
-                'wall_area' => $wallArea,
-                'room_area' => $roomArea,
-                'created_at' => date('Y-m-d H:i:s')
-            ];
-
-            // Зберігаємо також для сторінки вибору послуг
-            $_SESSION['room_type_id'] = $roomTypeId;
-            $_SESSION['wall_area'] = $wallArea;
-            $_SESSION['room_area'] = $roomArea;
-
-            header('Content-Type: application/json');
-            echo json_encode([
-                'success' => true,
-                'redirect' => '/BuildMaster/calculator/services-selection?room_type_id=' . urlencode($roomTypeId) . '&wall_area=' . urlencode($wallArea) . '&room_area=' . urlencode($roomArea)
-            ]);
-
-        } catch (\Exception $e) {
-            header('Content-Type: application/json');
-            http_response_code(500);
-            echo json_encode(['success' => false, 'error' => 'Помилка створення проекту: ' . $e->getMessage()]);
-        }
-        exit;
-    }
-
-    // Метод для відображення сторінки вибору послуг
     public function servicesSelection()
     {
-        // Отримуємо дані з сесії або параметрів URL
-        $roomTypeId = $_SESSION['room_type_id'] ?? $_GET['room_type_id'] ?? null;
-        $wallArea = $_SESSION['wall_area'] ?? $_GET['wall_area'] ?? 0;
-        $roomArea = $_SESSION['room_area'] ?? $_GET['room_area'] ?? 0;
-
-        if (!$roomTypeId || $wallArea <= 0 || $roomArea <= 0) {
-            header('Location: /BuildMaster/calculator');
-            exit;
-        }
-
-        // Зберігаємо дані в сесії, якщо вони прийшли через GET
-        $_SESSION['room_type_id'] = $roomTypeId;
-        $_SESSION['wall_area'] = $wallArea;
-        $_SESSION['room_area'] = $roomArea;
-
-        return $this->view('calculator/services-selection', [
-            'roomTypeId' => $roomTypeId,
-            'wallArea' => $wallArea,
-            'roomArea' => $roomArea
-        ]);
+        return $this->view('calculator/services-selection');
     }
 
-    // Використовуємо ServiceCalculatorController для роботи з послугами
-    public function getServicesJson()
-    {
-        // Створюємо екземпляр ServiceCalculatorController
-        $serviceController = new ServiceCalculatorController($this->db);
 
+    public function createProject()
+    {
         header('Content-Type: application/json');
 
-        $roomTypeId = $_GET['room_type_id'] ?? null;
-
-        if (!$roomTypeId) {
-            http_response_code(400);
-            echo json_encode(['error' => 'room_type_id is required']);
-            return;
-        }
-
         try {
-            $services = $serviceController->getGroupedServicesByRoomType($roomTypeId);
-            echo json_encode($services);
-        } catch (\Exception $e) {
-            http_response_code(500);
-            echo json_encode(['error' => 'Помилка завантаження послуг: ' . $e->getMessage()]);
-        }
-        exit;
-    }
+            $roomTypeId = $_POST['room_type_id'] ?? null;
+            $wallArea = floatval($_POST['wall_area'] ?? 0);
+            $roomArea = floatval($_POST['room_area'] ?? 0);
 
-    public function calculateJson()
-    {
-        // Створюємо екземпляр ServiceCalculatorController
-        $serviceController = new ServiceCalculatorController($this->db);
+            if (!$roomTypeId || $wallArea <= 0 || $roomArea <= 0) {
+                throw new \Exception('Некоректні дані форми');
+            }
 
-        header('Content-Type: application/json');
-
-        $input = json_decode(file_get_contents('php://input'), true);
-
-        $selectedServices = $input['services'] ?? [];
-        $wallArea = floatval($input['wall_area'] ?? 0);
-        $roomArea = floatval($input['room_area'] ?? 0);
-
-        if (empty($selectedServices) || $wallArea <= 0 || $roomArea <= 0) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Invalid input data']);
-            return;
-        }
-
-        try {
-            $total = $serviceController->calculateTotal($selectedServices, $wallArea, $roomArea);
+            // Зберігаємо дані кімнати в сесії для подальшого використання
+            $_SESSION['room_data'] = [
+                'room_type_id' => $roomTypeId,
+                'wall_area' => $wallArea,
+                'floor_area' => $roomArea
+            ];
 
             echo json_encode([
-                'total' => $total,
-                'wall_area' => $wallArea,
-                'room_area' => $roomArea,
-                'services_count' => count($selectedServices)
+                'success' => true,
+                'message' => 'Дані кімнати збережено',
+                'redirect_url' => '/BuildMaster/calculator/services-selection?room_type_id=' . $roomTypeId . '&wall_area=' . $wallArea . '&room_area=' . $roomArea
             ]);
+
         } catch (\Exception $e) {
             http_response_code(500);
-            echo json_encode(['error' => 'Помилка розрахунку: ' . $e->getMessage()]);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Помилка збереження даних: ' . $e->getMessage()
+            ]);
         }
-        exit;
     }
-
-    public function materials($slug)
+    private function updateOrderTotal($orderId)
     {
-        if (!isset($_SESSION['current_project'])) {
-            header('Location: /BuildMaster/calculator');
-            exit;
+        try {
+            $stmt = $this->db->prepare("
+            SELECT COALESCE(SUM(ors.total_price), 0) as total
+            FROM order_room_services ors
+            JOIN order_rooms ord_room ON ors.order_room_id = ord_room.id
+            WHERE ord_room.order_id = ? AND ors.is_selected = 1
+        ");
+            $stmt->execute([$orderId]);
+            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            $total = $result['total'] ?? 0;
+
+            $stmt = $this->db->prepare("UPDATE orders SET total_amount = ?, updated_at = NOW() WHERE id = ?");
+            $stmt->execute([$total, $orderId]);
+
+        } catch (\Exception $e) {
+            error_log("Error updating order total: " . $e->getMessage());
+            throw $e;
         }
-
-        $project = $_SESSION['current_project'];
-
-        if ($project['room_type_slug'] !== $slug) {
-            header('Location: /BuildMaster/calculator');
-            exit;
-        }
-
-        return $this->view('calculator/materials', ['project' => $project]);
     }
-
+    public function getServicesJson()
+    {
+        return $this->serviceCalculatorController->getServicesJson();
+    }
+    public function calculateJson()
+    {
+        return $this->serviceCalculatorController->calculateJson();
+    }
+    public function saveRoomWithServices()
+    {
+        return $this->serviceCalculatorController->saveRoomWithServices();
+    }
+    public function getCurrentOrderRooms()
+    {
+        return $this->serviceCalculatorController->getCurrentOrderRooms();
+    }
+    public function getRoomDetails($roomId)
+    {
+        return $this->serviceCalculatorController->getRoomDetails($roomId);
+    }
     public function result()
     {
         if (!isset($_SESSION['current_project'])) {

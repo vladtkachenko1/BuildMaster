@@ -43,21 +43,45 @@ class AuthController {
             try {
                 $db = Database::getInstance()->getConnection();
 
-                $stmt = $db->prepare("SELECT id, email, password FROM users WHERE email = :email");
+                // ОНОВЛЕНО: Додано is_admin та status в запит
+                $stmt = $db->prepare("SELECT id, email, password, is_admin, status, first_name, last_name FROM users WHERE email = :email");
                 $stmt->bindParam(':email', $email, PDO::PARAM_STR);
                 $stmt->execute();
 
                 $user = $stmt->fetch();
 
                 if ($user && password_verify($password, $user['password'])) {
+                    // Перевірка статусу користувача
+                    if ($user['status'] === 'banned') {
+                        http_response_code(403);
+                        echo json_encode(['error' => 'Ваш акаунт заблоковано']);
+                        return;
+                    }
+
+                    if ($user['status'] === 'inactive') {
+                        http_response_code(403);
+                        echo json_encode(['error' => 'Ваш акаунт неактивний']);
+                        return;
+                    }
+
+                    // ОНОВЛЕНО: Додано інформацію про адміна в сесію
                     $_SESSION['user'] = [
                         'id' => $user['id'],
                         'email' => $user['email'],
+                        'first_name' => $user['first_name'],
+                        'last_name' => $user['last_name'],
+                        'is_admin' => (bool)$user['is_admin'],
                         'authenticated' => true
                     ];
 
+                    // Відновлюємо активне замовлення користувача
+                    $this->restoreUserActiveOrder($db, $user['id']);
+
                     http_response_code(200);
-                    echo json_encode(['success' => true]);
+                    echo json_encode([
+                        'success' => true,
+                        'is_admin' => (bool)$user['is_admin']
+                    ]);
                 } else {
                     http_response_code(401);
                     echo json_encode(['error' => 'Невірний логін або пароль']);
@@ -72,6 +96,26 @@ class AuthController {
             echo json_encode(['error' => 'Метод не дозволено']);
         }
     }
+
+    private function restoreUserActiveOrder($db, $userId) {
+        try {
+            $stmt = $db->prepare("
+                SELECT id FROM orders 
+                WHERE user_id = ? AND status = 'draft' 
+                ORDER BY updated_at DESC LIMIT 1
+            ");
+            $stmt->execute([$userId]);
+            $activeOrder = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($activeOrder) {
+                $_SESSION['current_order_id'] = $activeOrder['id'];
+                error_log("Restored active order {$activeOrder['id']} for user {$userId} after login");
+            }
+        } catch (Exception $e) {
+            error_log("Error restoring user active order: " . $e->getMessage());
+        }
+    }
+
     public function register() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $first_name = isset($_POST['first_name']) ? trim($_POST['first_name']) : '';
@@ -102,8 +146,8 @@ class AuthController {
                 // Хешуємо пароль
                 $passwordHash = password_hash($password, PASSWORD_DEFAULT);
 
-                // Вставляємо нового користувача
-                $stmt = $db->prepare("INSERT INTO users (first_name, last_name, email, phone, password, is_admin) VALUES (:first_name, :last_name, :email, :phone, :password, 0)");
+                // Вставляємо нового користувача (is_admin за замовчуванням 0)
+                $stmt = $db->prepare("INSERT INTO users (first_name, last_name, email, phone, password, is_admin, status) VALUES (:first_name, :last_name, :email, :phone, :password, 0, 'active')");
                 $stmt->bindParam(':first_name', $first_name, PDO::PARAM_STR);
                 $stmt->bindParam(':last_name', $last_name, PDO::PARAM_STR);
                 $stmt->bindParam(':email', $email, PDO::PARAM_STR);
@@ -145,13 +189,37 @@ class AuthController {
 
     public function checkAuth() {
         header('Content-Type: application/json');
-        echo json_encode(['authenticated' => $this->isAuthenticated()]);
+        echo json_encode([
+            'authenticated' => $this->isAuthenticated(),
+            'is_admin' => $this->isAdmin()
+        ]);
     }
 
     public function isAuthenticated() {
         return isset($_SESSION['user']) &&
             isset($_SESSION['user']['authenticated']) &&
             $_SESSION['user']['authenticated'] === true;
+    }
+
+    // НОВА ФУНКЦІЯ: Перевірка чи користувач є адміном
+    public function isAdmin() {
+        return $this->isAuthenticated() &&
+            isset($_SESSION['user']['is_admin']) &&
+            $_SESSION['user']['is_admin'] === true;
+    }
+
+    // НОВА ФУНКЦІЯ: Перевірка доступу для адмінів
+    public function requireAdmin() {
+        if (!$this->isAdmin()) {
+            if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
+                strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
+                http_response_code(403);
+                echo json_encode(['error' => 'Доступ заборонено. Потрібні права адміністратора']);
+            } else {
+                header('Location: /?error=access_denied');
+            }
+            exit;
+        }
     }
 
     public function requireAuth() {
@@ -165,6 +233,14 @@ class AuthController {
             }
             exit;
         }
+    }
+
+    // НОВА ФУНКЦІЯ: Отримання інформації про поточного користувача
+    public function getCurrentUser() {
+        if ($this->isAuthenticated()) {
+            return $_SESSION['user'];
+        }
+        return null;
     }
 }
 

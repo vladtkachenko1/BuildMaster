@@ -1,5 +1,4 @@
-/* Calculator Styles - Modern and Beautiful */
-
+/*ПРИКЛАД СТИЛІВ*/
 * {
     margin: 0;
     padding: 0;
@@ -496,18 +495,6 @@ input[type="number"]:focus {
     display: flex;
     justify-content: flex-end;
 }
-.error-message {
-    background-color: #f8d7da;
-    color: #842029;
-    padding: 10px 15px;
-    border-radius: 6px;
-    margin-bottom: 10px;
-    font-size: 14px;
-    border: 1px solid #f5c2c7;
-    opacity: 0;
-    transition: opacity 0.3s ease-in-out;
-    display: none;
-}
 
 /* Responsive Design */
 @media (max-width: 768px) {
@@ -583,3 +570,4 @@ input[type="number"]:focus {
         width: 100%;
     }
 }
+

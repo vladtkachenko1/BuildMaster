@@ -1,178 +1,260 @@
-/* Services Selection Styles */
+/* services-selection.css */
 
 .services-container {
-    max-width: 1400px;
+    max-width: 800px;
     margin: 0 auto;
-    padding: 20px;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 .services-header {
+    width: 800px; /* Встановлюємо фіксовану ширину 800px */
+    max-width: 100%; /* Для адаптивності на мобільних */
+    margin-bottom: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+/* Стилі для кнопки назад в хедері */
+.calculator-header .back-btn {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 16px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin-bottom: 30px;
-    padding: 20px;
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
-    border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    gap: 6px;
+    cursor: pointer;
+    padding: 0.5rem 1rem;
+    border-radius: 50%;
+    transition: background-color 0.3s ease;
+    margin-bottom: 1rem;
+    align-self: flex-start;
+}
+
+.calculator-header .back-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.calculator-header .back-btn i {
+    font-size: 14px;
 }
 
 .project-info {
     display: flex;
-    gap: 30px;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
 }
 
 .info-item {
     display: flex;
     align-items: center;
-    gap: 8px;
-    color: #fff;
-    font-size: 14px;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: white;
+    border: 1px solid #e0e6ed;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .info-item i {
-    color: #00d4ff;
+    color: #667eea;
 }
 
+.progress-container {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+
+.progress-bar {
+    width: 100%; /* Така ж ширина як у services-list */
+    height: 8px;
+    background: #e9ecef;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: #ffc107;
+    transition: width 0.3s ease;
+}
+
+/* Основний контент - тепер вертикальна структура */
 .services-content {
-    display: grid;
-    grid-template-columns: 1fr 350px;
-    gap: 30px;
-    align-items: start;
+    width: 800px; /* Встановлюємо фіксовану ширину 800px */
+    max-width: 100%; /* Для адаптивності на мобільних */
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
 }
 
 .services-list {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
+    background: #f8f9fa;
+    border-radius: 12px;
+    padding: 1.5rem;
+    width: 800px; /* Встановлюємо фіксовану ширину 800px */
+    max-width: 100%; /* Для адаптивності на мобільних */
+    box-sizing: border-box;
 }
 
-.loading-spinner {
-    text-align: center;
-    padding: 60px 20px;
-    color: #fff;
-}
-
-.loading-spinner i {
-    font-size: 48px;
-    color: #00d4ff;
-    margin-bottom: 20px;
-}
-
-/* Service Block Styles */
-.service-block {
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
-    border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+/* Стилі для областей (стіни, підлога, стеля) */
+.area-section {
+    margin-bottom: 2rem;
+    border: 1px solid #e0e6ed;
+    border-radius: 12px;
     overflow: hidden;
+    background: white;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    transition: all 0.3s ease;
+}
+
+.area-section:hover {
+    box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+}
+
+.area-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 1.5rem;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.3s ease;
+}
+
+.area-header:hover {
+    background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+}
+
+.area-title {
+    font-size: 1.4rem;
+    font-weight: 600;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.area-title small {
+    font-size: 0.9rem;
+    opacity: 0.8;
+    font-weight: 400;
+    background: rgba(255,255,255,0.2);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+}
+
+.area-content {
+    display: none; /* Змінюємо з max-height на display для стабільності */
+    padding: 1.5rem;
+}
+
+.area-section.expanded .area-content {
+    display: block;
+}
+
+.area-section.expanded .area-header .toggle-btn i {
+    transform: rotate(180deg);
+}
+
+/* Стилі для блоків послуг */
+.service-block {
+    margin-bottom: 1.5rem;
+    border: 1px solid #f0f0f0;
+    border-radius: 8px;
+    overflow: hidden;
+    background: white;
     transition: all 0.3s ease;
 }
 
 .service-block:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 30px rgba(0, 212, 255, 0.2);
+    border-color: #667eea;
+    box-shadow: 0 4px 8px rgba(102, 126, 234, 0.1);
 }
 
 .service-block-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 20px;
+    background: #f8f9fa;
+    padding: 1rem 1.5rem;
     cursor: pointer;
-    background: rgba(255, 255, 255, 0.05);
-    transition: background 0.3s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #f0f0f0;
+    transition: all 0.3s ease;
 }
 
 .service-block-header:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: #e9ecef;
 }
 
-.block-info h3 {
-    color: #fff;
-    margin: 0 0 8px 0;
-    font-size: 18px;
+.block-title {
+    font-size: 1.1rem;
     font-weight: 600;
+    margin: 0;
+    color: #343a40;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 0.5rem;
 }
 
-.block-info h3 i {
-    color: #00d4ff;
-    font-size: 16px;
+.block-title i {
+    color: #667eea;
 }
 
 .block-description {
-    color: rgba(255, 255, 255, 0.7);
-    margin: 0;
-    font-size: 14px;
-    line-height: 1.5;
-}
-
-.toggle-btn {
-    background: none;
-    border: none;
-    color: #00d4ff;
-    font-size: 20px;
-    cursor: pointer;
-    padding: 8px;
-    border-radius: 8px;
-    transition: all 0.3s ease;
-}
-
-.toggle-btn:hover {
-    background: rgba(0, 212, 255, 0.1);
-    transform: scale(1.1);
-}
-
-.toggle-btn i {
-    transition: transform 0.3s ease;
-}
-
-.service-block.expanded .toggle-btn i {
-    transform: rotate(180deg);
+    margin: 0.5rem 0 0 0;
+    color: #6c757d;
+    font-size: 0.9rem;
 }
 
 .service-block-content {
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.3s ease;
+    display: none; /* Змінюємо з max-height на display для стабільності */
+    padding: 1rem;
 }
 
 .service-block.expanded .service-block-content {
-    max-height: 1000px;
+    display: block;
+}
+
+.service-block.expanded .service-block-header .toggle-btn i {
+    transform: rotate(180deg);
 }
 
 .services-grid {
-    padding: 0 20px 20px;
     display: grid;
-    gap: 12px;
+    gap: 1rem;
 }
 
-/* Service Item Styles */
+/* Стилі для послуг */
 .service-item {
     display: flex;
     align-items: flex-start;
-    gap: 16px;
-    padding: 16px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    transition: all 0.3s ease;
+    gap: 1rem;
+    padding: 1.25rem;
+    border: 2px solid #f8f9fa;
+    border-radius: 8px;
     cursor: pointer;
+    transition: all 0.3s ease;
+    background: white;
 }
 
 .service-item:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: #00d4ff;
-    transform: translateX(4px);
+    border-color: #667eea;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
 }
 
 .service-item.selected {
-    background: rgba(0, 212, 255, 0.15);
-    border-color: #00d4ff;
+    border-color: #28a745;
+    background: linear-gradient(135deg, #f8fff9 0%, #e8f5e8 100%);
 }
 
 .service-checkbox {
@@ -184,221 +266,331 @@
     appearance: none;
     width: 20px;
     height: 20px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
+    border: 2px solid #dee2e6;
     border-radius: 4px;
     cursor: pointer;
+    position: relative;
     transition: all 0.3s ease;
-    background: transparent;
 }
 
 .service-check:checked {
-    background: #00d4ff;
-    border-color: #00d4ff;
+    background: #28a745;
+    border-color: #28a745;
 }
 
-.checkmark {
+.service-check:checked::after {
+    content: '✓';
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    color: #fff;
+    color: white;
     font-size: 12px;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    pointer-events: none;
-}
-
-.checkmark::after {
-    content: '✓';
-}
-
-.service-check:checked + .checkmark {
-    opacity: 1;
+    font-weight: bold;
 }
 
 .service-info {
     flex: 1;
-    min-width: 0;
 }
 
 .service-name {
-    color: #fff;
-    margin: 0 0 8px 0;
-    font-size: 16px;
-    font-weight: 500;
-    line-height: 1.3;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0 0 0.5rem 0;
+    color: #343a40;
 }
 
 .service-description {
-    color: rgba(255, 255, 255, 0.7);
-    margin: 0 0 12px 0;
-    font-size: 14px;
+    margin: 0 0 0.75rem 0;
+    color: #6c757d;
+    font-size: 0.9rem;
     line-height: 1.4;
 }
 
 .service-price {
     display: flex;
     align-items: baseline;
-    gap: 4px;
+    gap: 0.25rem;
+    font-weight: 600;
 }
 
 .price-value {
-    color: #00d4ff;
-    font-size: 18px;
-    font-weight: 600;
+    font-size: 1.2rem;
+    color: #667eea;
 }
 
 .price-unit {
-    color: rgba(255, 255, 255, 0.6);
-    font-size: 14px;
+    font-size: 0.9rem;
+    color: #6c757d;
 }
 
-/* Calculation Sidebar */
+/* Бічна панель розрахунку - тепер знизу */
 .calculation-sidebar {
-    position: sticky;
-    top: 20px;
+    width: 800px; /* Встановлюємо фіксовану ширину 800px */
+    max-width: 100%; /* Для адаптивності на мобільних */
 }
 
 .calculation-card {
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
-    border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    padding: 24px;
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    border: 1px solid #e0e6ed;
+    width: 800px; /* Встановлюємо фіксовану ширину 800px */
+    max-width: 100%; /* Для адаптивності на мобільних */
+    box-sizing: border-box;
 }
 
 .calculation-card h3 {
-    color: #fff;
-    margin: 0 0 20px 0;
-    font-size: 18px;
-    font-weight: 600;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 0.5rem;
+    margin: 0 0 1.5rem 0;
+    color: #343a40;
+    font-size: 1.2rem;
 }
 
 .calculation-card h3 i {
-    color: #00d4ff;
-}
-
-.calculation-details {
-    margin-bottom: 24px;
+    color: #667eea;
 }
 
 .selected-services {
-    margin-bottom: 20px;
-}
-
-.no-services {
-    color: rgba(255, 255, 255, 0.6);
-    text-align: center;
-    padding: 20px;
-    font-style: italic;
-    margin: 0;
+    max-height: 300px;
+    overflow-y: auto;
+    margin-bottom: 1.5rem;
 }
 
 .selected-service {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    padding: 12px 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 0.9rem;
 }
 
 .selected-service:last-child {
     border-bottom: none;
 }
 
+.service-info {
+    flex: 1;
+}
+
 .service-title {
-    color: #fff;
-    font-size: 14px;
     font-weight: 500;
+    color: #343a40;
+    margin-bottom: 0.25rem;
+}
+
+.service-area-type {
+    color: #6c757d;
+    font-size: 0.8rem;
+    font-style: italic;
 }
 
 .service-cost {
-    color: #00d4ff;
-    font-size: 14px;
     font-weight: 600;
+    color: #667eea;
+    white-space: nowrap;
+}
+
+.no-services {
+    text-align: center;
+    color: #6c757d;
+    font-style: italic;
+    margin: 2rem 0;
 }
 
 .calculation-total {
-    padding-top: 20px;
-    border-top: 2px solid rgba(255, 255, 255, 0.2);
+    border-top: 2px solid #f0f0f0;
+    padding-top: 1rem;
+    margin-bottom: 1.5rem;
 }
 
 .total-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    color: #fff;
-    font-size: 18px;
+    font-size: 1.1rem;
 }
 
 .total-row strong {
-    color: #00d4ff;
-    font-size: 24px;
-    font-weight: 700;
+    color: #28a745;
+    font-size: 1.3rem;
 }
 
-/* Responsive Design */
-@media (max-width: 1024px) {
-    .services-content {
-        grid-template-columns: 1fr;
-        gap: 20px;
-    }
-
-    .calculation-sidebar {
-        order: -1;
-        position: static;
-    }
+/* Кнопки */
+.primary-btn {
+    width: 100%;
+    padding: 1rem 1.5rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
 }
 
+.primary-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.primary-btn:disabled {
+    background: #dee2e6;
+    color: #6c757d;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.toggle-btn {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.toggle-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.toggle-btn i {
+    transition: transform 0.3s ease;
+    font-size: 0.9rem;
+}
+
+.loading-spinner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 3rem;
+    color: #6c757d;
+}
+
+.loading-spinner i {
+    font-size: 2rem;
+    color: #667eea;
+}
+
+/* Модальне вікно помилки */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    background-color: white;
+    margin: 15% auto;
+    padding: 0;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.modal-header {
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+    color: white;
+    padding: 1.5rem;
+    border-radius: 12px 12px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 50%;
+    transition: background-color 0.3s ease;
+}
+
+.close-btn:hover {
+    background-color: rgba(255,255,255,0.1);
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+/* Адаптивність */
 @media (max-width: 768px) {
-    .services-header {
-        flex-direction: column;
-        gap: 20px;
-        align-items: stretch;
+    .services-container {
+        padding: 1rem;
+        max-width: 100%;
+    }
+
+    /* На мобільних пристроях всі блоки займають повну ширину */
+    .services-header,
+    .services-content,
+    .services-list,
+    .calculation-sidebar,
+    .calculation-card {
+        width: 100%;
+        max-width: 100%;
     }
 
     .project-info {
-        justify-content: center;
-        flex-wrap: wrap;
-        gap: 20px;
+        flex-direction: column;
+        align-items: center;
     }
 
-    .services-container {
-        padding: 10px;
+    .info-item {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .area-title {
+        font-size: 1.2rem;
     }
 
     .service-item {
+        padding: 1rem;
+    }
+
+    .selected-service {
         flex-direction: column;
-        align-items: flex-start;
-        gap: 12px;
+        align-items: stretch;
+        gap: 0.5rem;
     }
 
-    .service-checkbox {
-        align-self: flex-start;
-    }
-}
-
-/* Animation для появлення блоків */
-@keyframes slideInUp {
-    from {
-        opacity: 0;
-        transform: translateY(30px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
+    .service-cost {
+        text-align: left;
+        font-size: 1rem;
     }
 }
-
-.service-block {
-    animation: slideInUp 0.5s ease forwards;
-}
-
-.service-block:nth-child(1) { animation-delay: 0.1s; }
-.service-block:nth-child(2) { animation-delay: 0.2s; }
-.service-block:nth-child(3) { animation-delay: 0.3s; }
-.service-block:nth-child(4) { animation-delay: 0.4s; }
-.service-block:nth-child(5) { animation-delay: 0.5s; }

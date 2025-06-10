@@ -16,8 +16,9 @@ if (!$roomTypeId || $wallArea <= 0 || $roomArea <= 0) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Вибір послуг - BuildMaster</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/BuildMaster/UI/css/calculator.css">
     <link rel="stylesheet" href="/BuildMaster/UI/css/services-selection.css">
+    <link rel="stylesheet" href="/BuildMaster/UI/css/calculator.css">
+
 </head>
 <body>
 <div class="calculator-container">
@@ -29,42 +30,49 @@ if (!$roomTypeId || $wallArea <= 0 || $roomArea <= 0) {
                 <h1>Вибір послуг</h1>
             </div>
             <p class="subtitle">Оберіть необхідні роботи для вашого ремонту</p>
+            <button id="back-to-form" class="back-btn">
+                <i class="fas fa-arrow-left"></i>
+            </button>
         </div>
     </header>
 
     <main class="calculator-main">
         <div class="services-container">
             <div class="services-header">
-                <button id="back-to-form" class="back-btn">
-                    <i class="fas fa-arrow-left"></i>
-                    Назад
-                </button>
+
+                <!-- Інформація про проект -->
                 <div class="project-info">
                     <div class="info-item">
                         <i class="fas fa-expand-arrows-alt"></i>
-                        <span>Стіни: <strong><?= htmlspecialchars($wallArea) ?> м²</strong></span>
+                        <span>Підлога: <strong><?= htmlspecialchars($roomArea) ?> м²</strong></span>
                     </div>
                     <div class="info-item">
                         <i class="fas fa-vector-square"></i>
-                        <span>Кімната: <strong><?= htmlspecialchars($roomArea) ?> м²</strong></span>
+                        <span>Стіни: <strong><?= htmlspecialchars($wallArea) ?> м²</strong></span>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-expand-arrows-alt"></i>
+                        <span>Стеля: <strong><?= htmlspecialchars($roomArea) ?> м²</strong></span>
                     </div>
                 </div>
-                <div class="progress-bar">
-                    <div class="progress-fill" style="width: 66%"></div>
+
+                <!-- Прогрес-бар -->
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 66%"></div>
+                    </div>
                 </div>
             </div>
 
             <!-- Services Selection -->
             <div class="services-content">
                 <div class="services-list" id="services-list">
-                    <!-- Тут будуть завантажені послуги через JavaScript -->
                     <div class="loading-spinner">
                         <i class="fas fa-spinner fa-spin"></i>
                         <p>Завантаження послуг...</p>
                     </div>
                 </div>
 
-                <!-- Sidebar with calculation -->
                 <div class="calculation-sidebar">
                     <div class="calculation-card">
                         <h3>
@@ -155,7 +163,6 @@ if (!$roomTypeId || $wallArea <= 0 || $roomArea <= 0) {
 </div>
 
 <script>
-    // Передаємо дані з PHP в JavaScript
     window.calculatorData = {
         roomTypeId: <?= json_encode($roomTypeId) ?>,
         wallArea: <?= json_encode(floatval($wallArea)) ?>,

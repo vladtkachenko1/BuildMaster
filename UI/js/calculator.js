@@ -1,10 +1,10 @@
-// Calculator JavaScript - Modern and Interactive
+// Calculator JavaScript - Виправлено маршрутизацію
 
 class CalculatorApp {
     constructor() {
         this.currentScreen = 'welcome-screen';
         this.roomTypes = [];
-        this.basePath = '/BuildMaster'; // Додаємо базовий шлях
+        this.basePath = '/BuildMaster';
         this.init();
     }
 
@@ -18,20 +18,27 @@ class CalculatorApp {
     }
 
     bindEvents() {
+        // ВИПРАВЛЕНО: кнопка "Створити проект" має перекидати на order-rooms
         const createProjectBtn = document.getElementById("create-project-btn");
         if (createProjectBtn) {
             createProjectBtn.addEventListener("click", (event) => {
                 event.preventDefault();
-                window.location.href = this.basePath + "/calculator/project-form";
+                console.log('Redirecting to order-rooms...');
+                // ВИПРАВЛЕНО: спочатку створюємо порожнє замовлення, потім перекидаємо на order-rooms
+                this.createEmptyOrderAndRedirect();
             });
         }
 
-        document.addEventListener("click", (e) => {
-            if (e.target && e.target.id === "back-btn") {
-                this.goBack();
-            }
-        });
+        // Перевіряємо існування кнопки "Назад"
+        const backBtn = document.getElementById("back-btn");
+        if (backBtn) {
+            backBtn.addEventListener("click", function (e) {
+                e.preventDefault();
+                window.location.href = "/BuildMaster/calculator/";
+            });
+        }
 
+        // Перевіряємо існування кнопки закриття помилки
         const closeErrorBtn = document.getElementById('close-error-btn');
         if (closeErrorBtn) {
             closeErrorBtn.addEventListener('click', () => {
@@ -39,16 +46,19 @@ class CalculatorApp {
             });
         }
 
+        // ВИПРАВЛЕНО: обробка форми проекту - має перекидати на services-selection
         const projectForm = document.getElementById('project-form');
         if (projectForm) {
             projectForm.addEventListener('submit', (e) => {
                 e.preventDefault();
-                this.handleFormSubmit();
+                this.handleProjectFormSubmit();
             });
         }
 
+        // Налаштовуємо анімації для інпутів тільки якщо вони існують
         this.setupInputAnimations();
 
+        // Глобальний слухач для Escape
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 this.hideModal('error-modal');
@@ -56,15 +66,139 @@ class CalculatorApp {
         });
     }
 
+    // НОВИЙ МЕТОД: створення порожнього замовлення перед переходом на order-rooms
+    async createEmptyOrderAndRedirect() {
+        try {
+            const response = await fetch(this.basePath + '/calculator/create-empty-order', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // Успішно створено порожнє замовлення, перекидаємо на order-rooms
+                window.location.href = this.basePath + '/calculator/order-rooms';
+            } else {
+                // Якщо не вдалося створити замовлення, все одно перекидаємо (можливо вже є активне)
+                console.warn('Could not create empty order:', data.error);
+                window.location.href = this.basePath + '/calculator/order-rooms';
+            }
+        } catch (error) {
+            console.error('Error creating empty order:', error);
+            // У разі помилки все одно перекидаємо
+            window.location.href = this.basePath + '/calculator/order-rooms';
+        }
+    }
+
+    // ВИПРАВЛЕНО: новий метод для обробки форми проекту
+    async handleProjectFormSubmit() {
+        const form = document.getElementById('project-form');
+
+        if (!form) {
+            console.error('Форма проекту не знайдена');
+            return;
+        }
+
+        const formData = new FormData(form);
+        const roomTypeId = formData.get('room_type_id');
+        const wallArea = parseFloat(formData.get('wall_area'));
+        const roomArea = parseFloat(formData.get('room_area'));
+
+        // Валідація форми
+        if (!this.validateForm(formData)) {
+            return;
+        }
+
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Збереження...';
+            submitBtn.disabled = true;
+
+            try {
+                // ВИПРАВЛЕНО: надсилаємо дані через FormData замість JSON
+                const response = await fetch(this.basePath + '/calculator/create-project', {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Зберігаємо дані в sessionStorage
+                    sessionStorage.setItem('selected_room_type_id', roomTypeId);
+                    sessionStorage.setItem('wall_area', wallArea);
+                    sessionStorage.setItem('room_area', roomArea);
+                    sessionStorage.setItem('current_room_id', data.room_id);
+
+                    // Перекидаємо на services-selection з правильним room_id
+                    window.location.href = data.redirect_url;
+                } else {
+                    throw new Error(data.error || 'Помилка створення проекту');
+                }
+
+            } catch (error) {
+                console.error('Error processing form:', error);
+                this.showError('Помилка обробки форми: ' + error.message);
+            } finally {
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            }
+        }
+    }
+    // Метод для видалення кімнати - ВИПРАВЛЕНО URL
+    async removeRoom(roomId) {
+        try {
+            const response = await fetch(this.basePath + "/calculator/remove-room", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({ room_id: roomId })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.showSuccess('Кімнату успішно видалено!');
+                setTimeout(() => {
+                    location.reload();
+                }, 1000);
+                return data;
+            } else {
+                throw new Error(data.error || 'Помилка видалення кімнати');
+            }
+        } catch (error) {
+            console.error('Error removing room:', error);
+            this.showError('Помилка видалення кімнати: ' + error.message);
+            throw error;
+        }
+    }
+
     goBack() {
-        // Простіший спосіб повернення назад
         window.history.back();
     }
 
     setupInputAnimations() {
         const inputs = document.querySelectorAll('input, select');
 
+        if (inputs.length === 0) {
+            return;
+        }
+
         inputs.forEach(input => {
+            if (!input.parentElement) {
+                return;
+            }
+
             input.addEventListener('focus', () => {
                 input.parentElement.classList.add('focused');
             });
@@ -85,6 +219,7 @@ class CalculatorApp {
 
     async loadRoomTypes() {
         try {
+            // ВИПРАВЛЕНО: URL відповідає методу getRoomTypes() в контролері
             const response = await fetch(this.basePath + '/calculator/room-types', {
                 method: 'GET',
                 headers: {
@@ -97,18 +232,7 @@ class CalculatorApp {
                 throw new Error(`HTTP помилка! статус: ${response.status}`);
             }
 
-            const text = await response.text();
-
-            if (!text.trim()) {
-                throw new Error('Сервер повернув порожню відповідь');
-            }
-
-            let data;
-            try {
-                data = JSON.parse(text);
-            } catch (e) {
-                throw new Error('Помилка при розборі JSON: ' + e.message + '\nСервер відповів:\n' + text);
-            }
+            const data = await response.json();
 
             if (data.success && Array.isArray(data.data)) {
                 this.roomTypes = data.data;
@@ -125,17 +249,21 @@ class CalculatorApp {
 
     populateRoomTypeSelect() {
         const select = document.getElementById('room-type');
-        if (!select || this.roomTypes.length === 0) {
-            console.log('Select елемент не знайдено або типи кімнат не завантажені');
+
+        if (!select) {
+            console.log('Select елемент "room-type" не знайдено - це нормально для головної сторінки');
             return;
         }
 
-        // Clear existing options except the first one
+        if (this.roomTypes.length === 0) {
+            console.log('Типи кімнат ще не завантажено');
+            return;
+        }
+
         while (select.children.length > 1) {
             select.removeChild(select.lastChild);
         }
 
-        // Add room types
         this.roomTypes.forEach(roomType => {
             const option = document.createElement('option');
             option.value = roomType.id;
@@ -144,29 +272,104 @@ class CalculatorApp {
             select.appendChild(option);
         });
 
-        // Add animation effect
         select.classList.add('loaded');
     }
 
-    async handleFormSubmit() {
-        const form = document.getElementById('project-form');
-        const formData = new FormData(form);
-
-        // Validate form
-        if (!this.validateForm(formData)) {
-            return;
-        }
-
-        // Show loading indicator
-        const submitBtn = form.querySelector('button[type="submit"]');
-        const originalText = submitBtn.innerHTML;
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Створення...';
-        submitBtn.disabled = true;
-
+    async saveRoomWithServices(selectedServices, roomName = 'Кімната') {
         try {
-            const response = await fetch(this.basePath + '/calculator/create', {
+            // ВИПРАВЛЕНО: URL відповідає методу saveRoomWithServices() в контролері
+            const response = await fetch(this.basePath + '/calculator/save-room-services', {
                 method: 'POST',
-                body: formData,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({
+                    services: selectedServices,
+                    room_name: roomName
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP помилка! статус: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.showSuccess('Кімнату успішно додано до замовлення!');
+
+                setTimeout(() => {
+                    window.location.href = data.redirect_url;
+                }, 2000);
+
+                return data;
+            } else {
+                throw new Error(data.error || 'Помилка збереження кімнати');
+            }
+        } catch (error) {
+            console.error('Error saving room:', error);
+            this.showError('Помилка збереження кімнати: ' + error.message);
+            throw error;
+        }
+    }
+
+    async loadServicesForRoomType(roomTypeId) {
+        try {
+            // ВИПРАВЛЕНО: URL відповідає методу getServicesJson() в контролері
+            const response = await fetch(this.basePath + '/calculator/services?room_type_id=' + encodeURIComponent(roomTypeId), {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP помилка! статус: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            // ВИПРАВЛЕНО: метод getServicesJson() повертає масив безпосередньо
+            if (Array.isArray(data)) {
+                return data;
+            } else {
+                throw new Error('Помилка завантаження послуг');
+            }
+        } catch (error) {
+            console.error('Error loading services:', error);
+            this.showError('Помилка завантаження послуг: ' + error.message);
+            return [];
+        }
+    }
+
+    async loadCurrentOrderRooms() {
+        try {
+            // ВИПРАВЛЕНО: URL відповідає методу getCurrentOrderRooms() в контролері
+            const response = await fetch(this.basePath + '/calculator/current-rooms', {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP помилка! статус: ${response.status}`);
+            }
+
+            const data = await response.json();
+            return data.rooms || [];
+        } catch (error) {
+            console.error('Error loading rooms:', error);
+            return [];
+        }
+    }
+
+    // Додано метод для отримання деталей кімнати
+    async getRoomDetails(roomId) {
+        try {
+            const response = await fetch(this.basePath + '/calculator/room-details/' + roomId, {
+                method: 'GET',
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest'
                 }
@@ -179,26 +382,63 @@ class CalculatorApp {
             const data = await response.json();
 
             if (data.success) {
-                // Переходимо на сторінку вибору послуг замість materials
-                const roomTypeId = formData.get('room_type_id');
-                const wallArea = formData.get('wall_area');
-                const roomArea = formData.get('room_area');
-
-                const redirectUrl = `${this.basePath}/calculator/services-selection?room_type_id=${encodeURIComponent(roomTypeId)}&wall_area=${encodeURIComponent(wallArea)}&room_area=${encodeURIComponent(roomArea)}`;
-
-                setTimeout(() => {
-                    window.location.href = redirectUrl;
-                }, 1500);
+                return data.room;
             } else {
-                this.showError(data.error || 'Помилка створення проекту');
+                throw new Error(data.error || 'Помилка завантаження деталей кімнати');
             }
         } catch (error) {
-            console.error('Error submitting form:', error);
-            this.showError('Помилка з\'єднання з сервером: ' + error.message);
-        } finally {
-            // Restore button
-            submitBtn.innerHTML = originalText;
-            submitBtn.disabled = false;
+            console.error('Error loading room details:', error);
+            this.showError('Помилка завантаження деталей: ' + error.message);
+            return null;
+        }
+    }
+
+    // Додано метод для розрахунку вартості
+    async calculateCost(services, wallArea, roomArea, roomTypeId) {
+        try {
+            const response = await fetch(this.basePath + '/calculate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({
+                    services: services,
+                    wall_area: wallArea,
+                    room_area: roomArea,
+                    room_type_id: roomTypeId
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP помилка! статус: ${response.status}`);
+            }
+
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('Error calculating cost:', error);
+            this.showError('Помилка розрахунку: ' + error.message);
+            return null;
+        }
+    }
+
+    showSuccess(message) {
+        let successModal = document.getElementById('success-modal');
+
+        if (!successModal) {
+            alert(message);
+            return;
+        }
+
+        const successMessage = document.getElementById('success-message');
+        if (successMessage) {
+            successMessage.textContent = message;
+            this.showModal('success-modal');
+
+            setTimeout(() => {
+                this.hideModal('success-modal');
+            }, 3000);
         }
     }
 
@@ -241,29 +481,27 @@ class CalculatorApp {
                 field.focus();
                 if (field.select) field.select();
             }, 100);
+        } else {
+            console.warn(`Поле з ID "${fieldId}" не знайдено`);
         }
     }
 
     showScreen(screenId) {
-        // Hide current screen
         const currentScreen = document.getElementById(this.currentScreen);
         if (currentScreen) {
             currentScreen.classList.remove('active');
         }
 
-        // Show new screen with animation
         setTimeout(() => {
             const newScreen = document.getElementById(screenId);
             if (newScreen) {
                 newScreen.classList.add('active');
                 this.currentScreen = screenId;
 
-                // Update progress bar if on form screen
                 if (screenId === 'project-form-screen') {
                     this.updateProgress(33);
                 }
 
-                // Focus first input if form screen
                 if (screenId === 'project-form-screen') {
                     setTimeout(() => {
                         const firstInput = newScreen.querySelector('select, input');
@@ -282,18 +520,16 @@ class CalculatorApp {
     }
 
     showError(message) {
-        if (!document.getElementById('error-modal')) {
+        const errorModal = document.getElementById('error-modal');
+        const errorMessage = document.getElementById('error-message');
+
+        if (!errorModal || !errorMessage) {
             alert(message);
             return;
         }
 
-        const errorModal = document.getElementById('error-modal');
-        const errorMessage = document.getElementById('error-message');
-
-        if (errorModal && errorMessage) {
-            errorMessage.textContent = message;
-            this.showModal('error-modal');
-        }
+        errorMessage.textContent = message;
+        this.showModal('error-modal');
     }
 
     showModal(modalId) {
@@ -302,7 +538,6 @@ class CalculatorApp {
             modal.classList.add('active');
             document.body.style.overflow = 'hidden';
 
-            // Focus trap for accessibility
             const focusableElements = modal.querySelectorAll(
                 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
             );
@@ -341,9 +576,12 @@ class CalculatorApp {
         requestAnimationFrame(animate);
     }
 
-    // Add ripple effect to buttons
     addRippleEffect() {
         const buttons = document.querySelectorAll('.primary-btn, .secondary-btn');
+
+        if (buttons.length === 0) {
+            return;
+        }
 
         buttons.forEach(button => {
             button.addEventListener('click', (e) => {
@@ -394,7 +632,6 @@ class SmoothScroll {
     }
 }
 
-// Функція для показу помилок (залишається для сумісності)
 function showError(message, targetId) {
     const el = document.getElementById(targetId);
     if (!el) {
@@ -422,44 +659,12 @@ function showError(message, targetId) {
 document.addEventListener('DOMContentLoaded', () => {
     const app = new CalculatorApp();
 
-    // Add some nice loading animations
     const screens = document.querySelectorAll('.screen');
     screens.forEach((screen, index) => {
         screen.style.animationDelay = `${index * 0.1}s`;
     });
 
-    // Add ripple effects to buttons
     app.addRippleEffect();
-});
-
-// Обробник для форми проекту (спрощений)
-document.addEventListener('DOMContentLoaded', () => {
-    const projectForm = document.getElementById("project-form");
-    if (!projectForm) return;
-
-    projectForm.addEventListener("submit", function (e) {
-        e.preventDefault();
-
-        const roomTypeId = document.getElementById("room-type").value;
-        const wallArea = document.getElementById("wall-area").value;
-        const roomArea = document.getElementById("room-area").value;
-
-        if (!roomTypeId || wallArea <= 0 || roomArea <= 0) {
-            // Показати модалку з помилкою
-            const errorMessage = document.getElementById("error-message");
-            const errorModal = document.getElementById("error-modal");
-
-            if (errorMessage && errorModal) {
-                errorMessage.textContent = "Будь ласка, заповніть усі поля коректно.";
-                errorModal.style.display = "block";
-            }
-            return;
-        }
-
-        // Перехід на наступну сторінку з параметрами
-        const url = `/BuildMaster/calculator/services-selection?room_type_id=${encodeURIComponent(roomTypeId)}&wall_area=${encodeURIComponent(wallArea)}&room_area=${encodeURIComponent(roomArea)}`;
-        window.location.href = url;
-    });
 });
 
 // CSS для ripple ефекту
@@ -506,7 +711,79 @@ const rippleCSS = `
         }
     }
 `;
+document.addEventListener('DOMContentLoaded', function() {
+    // Перевірка режиму редагування
+    const isEditMode = new URLSearchParams(window.location.search).has('edit');
 
+    if (isEditMode) {
+        // Отримуємо дані для редагування
+        fetch('/BuildMaster/calculator/get-editing-data', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.roomData) {
+                    fillEditingForm(data.roomData);
+                }
+            })
+            .catch(error => {
+                console.error('Error loading editing data:', error);
+            });
+    }
+});
+
+function fillEditingForm(roomData) {
+    // Заповнюємо тип кімнати
+    const roomTypeSelect = document.getElementById('room-type');
+    if (roomTypeSelect && roomData.room_type_id) {
+        roomTypeSelect.value = roomData.room_type_id;
+        roomTypeSelect.dispatchEvent(new Event('change'));
+    }
+
+    // Заповнюємо назву кімнати
+    const roomNameInput = document.getElementById('room-name');
+    if (roomNameInput && roomData.room_name) {
+        roomNameInput.value = roomData.room_name;
+    }
+
+    // Заповнюємо площі
+    const wallAreaInput = document.getElementById('wall-area');
+    const floorAreaInput = document.getElementById('floor-area');
+
+    if (wallAreaInput && roomData.wall_area) {
+        wallAreaInput.value = roomData.wall_area;
+    }
+
+    if (floorAreaInput && roomData.floor_area) {
+        floorAreaInput.value = roomData.floor_area;
+    }
+
+    // Позначаємо обрані послуги (це буде працювати після завантаження послуг)
+    if (roomData.selected_services && roomData.selected_services.length > 0) {
+        setTimeout(() => {
+            markSelectedServices(roomData.selected_services);
+        }, 1000);
+    }
+
+    // Змінюємо текст кнопки
+    const submitButton = document.querySelector('.calculator-actions .primary-btn');
+    if (submitButton) {
+        submitButton.innerHTML = '<i class="fas fa-save"></i> Зберегти зміни';
+    }
+}
+
+function markSelectedServices(selectedServices) {
+    selectedServices.forEach(service => {
+        const serviceCheckbox = document.querySelector(`input[data-service-id="${service.service_id}"]`);
+        if (serviceCheckbox) {
+            serviceCheckbox.checked = true;
+            serviceCheckbox.dispatchEvent(new Event('change'));
+        }
+    });
+}
 const style = document.createElement('style');
 style.textContent = rippleCSS;
 document.head.appendChild(style);

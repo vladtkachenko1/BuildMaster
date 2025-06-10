@@ -1,4 +1,4 @@
-<!-- calculator.html -->
+
 <!DOCTYPE html>
 <html lang="uk">
 <head>
@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Калькулятор вартості ремонту - BuildMaster</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="UI/css/calculator.css">
+    <link rel="stylesheet" href="/BuildMaster/UI/css/calculator.css">
 </head>
 <body>
 <div class="calculator-container">
@@ -84,6 +84,6 @@
     </div>
 </div>
 
-<script src="UI/js/calculator.js"></script>
+<script src="/BuildMaster/UI/js/calculator.js"></script>
 </body>
 </html>

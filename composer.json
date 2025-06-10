@@ -1,5 +1,5 @@
 {
   "require": {
-    "": "<default>"
+    "phpmailer/phpmailer": "^6.10"
   }
 }
