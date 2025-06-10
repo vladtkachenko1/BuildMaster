@@ -161,23 +161,70 @@ class RoomEditor {
 
         try {
             this.showLoading(true);
-
             const response = await fetch(`/BuildMaster/calculator/room-edit-services/${this.roomData.roomId}`);
-
+            
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-
+            
             const data = await response.json();
-
-            if (data.error) {
-                throw new Error(data.error);
+            
+            if (!data.success) {
+                throw new Error(data.error || 'Помилка отримання даних');
             }
 
-            this.services = data.services || [];
-            this.renderServices();
-            this.calculateTotal();
+            // Оновлюємо дані кімнати
+            if (data.room_data) {
+                this.roomData = {
+                    ...this.roomData,
+                    ...data.room_data
+                };
+            }
+            
+            // Фільтруємо пусті блоки послуг
+            this.services = (data.services || []).filter(area => 
+                area.service_blocks && 
+                area.service_blocks.length > 0 && 
+                area.service_blocks.some(block => block.services && block.services.length > 0)
+            );
+            
+            // Очищаємо та оновлюємо вибрані послуги
+            this.selectedServices.clear();
+            this.services.forEach(area => {
+                if (area.service_blocks) {
+                    area.service_blocks.forEach(block => {
+                        if (block.services) {
+                            block.services.forEach(service => {
+                                if (service.is_selected) {
+                                    this.selectedServices.set(service.id, {
+                                        id: service.id,
+                                        name: service.name,
+                                        price_per_sqm: service.selected_unit_price,
+                                        area_type: service.area_type,
+                                        quantity: service.selected_quantity,
+                                        total: service.selected_total_price
+                                    });
+                                }
+                            });
+                        }
+                    });
+                }
+            });
 
+            // Оновлюємо форму
+            const roomNameInput = document.getElementById('room-name');
+            const wallAreaInput = document.getElementById('wall-area');
+            const floorAreaInput = document.getElementById('floor-area');
+
+            if (roomNameInput) roomNameInput.value = this.roomData.room_name || '';
+            if (wallAreaInput) wallAreaInput.value = this.roomData.wall_area || 0;
+            if (floorAreaInput) floorAreaInput.value = this.roomData.floor_area || 0;
+
+            // Оновлюємо відображення
+            this.renderServices();
+            this.updateDisplayValues();
+            this.calculateTotal();
+            this.updateSelectedServicesList();
         } catch (error) {
             console.error('Error loading services:', error);
             this.showError('Помилка завантаження послуг: ' + error.message);
@@ -198,135 +245,245 @@ class RoomEditor {
             return;
         }
 
-        let html = '';
+        // Очищаємо контейнер
+        servicesList.innerHTML = '';
 
-        this.services.forEach(area => {
-            html += `<div class="services-area">`;
-            html += `<h2 class="area-title"><i class="fas fa-layer-group"></i> ${this.escapeHtml(area.area_name)}</h2>`;
+        // Отримуємо шаблони
+        const blockTemplate = document.getElementById('service-block-template');
+        const itemTemplate = document.getElementById('service-item-template');
 
-            if (area.service_blocks && area.service_blocks.length > 0) {
-                area.service_blocks.forEach(block => {
-                    html += this.renderServiceBlock(block);
+        if (!blockTemplate || !itemTemplate) {
+            console.error('Templates not found');
+            return;
+        }
+
+        // Рендеримо кожну область
+        this.services.forEach((area, areaIndex) => {
+            if (!area || typeof area !== 'object') {
+                console.warn('Invalid area data:', area);
+                return;
+            }
+
+            // Створюємо секцію для області
+            const areaSection = document.createElement('div');
+            areaSection.className = 'area-section';
+            areaSection.setAttribute('data-area-type', area.area_type);
+
+            // Визначаємо іконку та площу для області
+            let areaIcon = 'fas fa-square';
+            let areaSize = this.roomData.floor_area;
+
+            switch (area.area_type) {
+                case 'floor':
+                    areaIcon = 'fas fa-expand-arrows-alt';
+                    areaSize = this.roomData.floor_area;
+                    break;
+                case 'walls':
+                    areaIcon = 'fas fa-vector-square';
+                    areaSize = this.roomData.wall_area;
+                    break;
+                case 'ceiling':
+                    areaIcon = 'fas fa-bars';
+                    areaSize = this.roomData.floor_area;
+                    break;
+            }
+
+            // Створюємо заголовок області
+            const areaHeader = document.createElement('div');
+            areaHeader.className = 'area-header';
+            areaHeader.innerHTML = `
+                <h3 class="area-title">
+                    <i class="${areaIcon}"></i>
+                    ${this.escapeHtml(area.area_name)}
+                    <small>${areaSize} м²</small>
+                </h3>
+                <button class="toggle-btn">
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+            `;
+
+            // Створюємо контент області
+            const areaContent = document.createElement('div');
+            areaContent.className = 'area-content';
+
+            // Рендеримо блоки послуг
+            if (area.service_blocks && Array.isArray(area.service_blocks)) {
+                area.service_blocks.forEach((block, blockIndex) => {
+                    const blockElement = blockTemplate.content.cloneNode(true);
+                    const serviceBlock = blockElement.querySelector('.service-block');
+                    const blockHeader = blockElement.querySelector('.service-block-header');
+                    const blockContent = blockElement.querySelector('.service-block-content');
+                    const toggleBtn = blockElement.querySelector('.toggle-btn');
+                    const servicesGrid = blockElement.querySelector('.services-grid');
+
+                    // Заповнюємо дані блоку
+                    const blockName = blockElement.querySelector('.block-name');
+                    const blockDescription = blockElement.querySelector('.block-description');
+
+                    if (blockName) blockName.textContent = block.name;
+                    if (blockDescription) blockDescription.textContent = block.description;
+
+                    // Додаємо ID для блоку
+                    if (serviceBlock) {
+                        serviceBlock.setAttribute('data-block-id', block.id);
+                        serviceBlock.setAttribute('data-area-type', area.area_type);
+                    }
+
+                    // Рендеримо послуги в блоці
+                    if (block.services && Array.isArray(block.services)) {
+                        block.services.forEach(service => {
+                            const serviceElement = itemTemplate.content.cloneNode(true);
+                            const serviceItem = serviceElement.querySelector('.service-item');
+                            const serviceCheck = serviceElement.querySelector('.service-check');
+                            const serviceName = serviceElement.querySelector('.service-name');
+                            const serviceDescription = serviceElement.querySelector('.service-description');
+                            const priceValue = serviceElement.querySelector('.price-value');
+                            const calculationDetails = serviceElement.querySelector('.calculation-details');
+
+                            if (serviceName) serviceName.textContent = service.name;
+                            if (serviceDescription) serviceDescription.textContent = service.description;
+                            if (priceValue) priceValue.textContent = parseFloat(service.price_per_sqm).toFixed(2);
+
+                            // Додаємо розрахунок для вибраної послуги
+                            if (service.is_selected) {
+                                const calculation = this.getServiceCalculation(service);
+                                if (calculationDetails) {
+                                    calculationDetails.textContent = calculation;
+                                }
+                            }
+
+                            if (serviceCheck) {
+                                serviceCheck.setAttribute('data-service-id', service.id);
+                                serviceCheck.setAttribute('data-price', service.price_per_sqm);
+                                serviceCheck.setAttribute('data-name', service.name);
+                                serviceCheck.setAttribute('data-area-type', area.area_type);
+                                
+                                if (service.is_selected) {
+                                    serviceCheck.checked = true;
+                                    serviceItem.classList.add('selected');
+                                }
+                            }
+
+                            if (serviceItem) {
+                                serviceItem.addEventListener('click', (e) => {
+                                    if (e.target.type !== 'checkbox') {
+                                        serviceCheck.click();
+                                    }
+                                });
+                            }
+
+                            // Обробник зміни чекбоксу
+                            if (serviceCheck) {
+                                serviceCheck.addEventListener('change', (e) => {
+                                    if (e.target.checked) {
+                                        this.addService(service.id);
+                                    } else {
+                                        this.removeService(service.id);
+                                    }
+                                });
+                            }
+
+                            servicesGrid.appendChild(serviceElement);
+                        });
+                    }
+
+                    // Обробник розгортання блоку
+                    if (blockHeader && toggleBtn) {
+                        blockHeader.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            serviceBlock.classList.toggle('expanded');
+                            blockContent.style.display = serviceBlock.classList.contains('expanded') ? 'block' : 'none';
+                            toggleBtn.querySelector('i').style.transform = serviceBlock.classList.contains('expanded') ? 'rotate(180deg)' : 'rotate(0)';
+                        });
+                    }
+
+                    // Розгортаємо перший блок кожної області за замовчуванням
+                    if (blockIndex === 0) {
+                        serviceBlock.classList.add('expanded');
+                        blockContent.style.display = 'block';
+                        toggleBtn.querySelector('i').style.transform = 'rotate(180deg)';
+                    }
+
+                    areaContent.appendChild(blockElement);
                 });
             }
 
-            html += `</div>`;
+            // Обробник розгортання області
+            areaHeader.addEventListener('click', (e) => {
+                e.preventDefault();
+                areaSection.classList.toggle('expanded');
+                areaContent.style.display = areaSection.classList.contains('expanded') ? 'block' : 'none';
+                areaHeader.querySelector('.toggle-btn i').style.transform = areaSection.classList.contains('expanded') ? 'rotate(180deg)' : 'rotate(0)';
+            });
+
+            // Збираємо секцію області
+            areaSection.appendChild(areaHeader);
+            areaSection.appendChild(areaContent);
+
+            // Розгортаємо першу область за замовчуванням
+            if (areaIndex === 0) {
+                areaSection.classList.add('expanded');
+                areaContent.style.display = 'block';
+                areaHeader.querySelector('.toggle-btn i').style.transform = 'rotate(180deg)';
+            }
+
+            servicesList.appendChild(areaSection);
         });
 
-        servicesList.innerHTML = html;
-        this.bindServiceEvents();
-    }
-
-    renderServiceBlock(block) {
-        let html = `
-            <div class="service-block">
-                <div class="service-block-header">
-                    <div class="block-info">
-                        <h3 class="block-title">
-                            <i class="fas fa-tools"></i>
-                            <span class="block-name">${this.escapeHtml(block.name)}</span>
-                        </h3>
-                        ${block.description ? `<p class="block-description">${this.escapeHtml(block.description)}</p>` : ''}
-                    </div>
-                    <div class="block-toggle">
-                        <button class="toggle-btn" type="button">
-                            <i class="fas fa-chevron-down"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="service-block-content">
-                    <div class="services-grid">
-        `;
-
-        if (block.services && block.services.length > 0) {
-            block.services.forEach(service => {
-                html += this.renderServiceItem(service);
-            });
-        }
-
-        html += `
-                    </div>
-                </div>
-            </div>
-        `;
-
-        return html;
-    }
-
-    renderServiceItem(service) {
-        const isSelected = service.is_selected || this.selectedServices.has(service.id);
-        const serviceData = this.selectedServices.get(service.id) || service;
-
-        return `
-            <div class="service-item ${isSelected ? 'selected' : ''}" data-service-id="${service.id}">
-                <div class="service-checkbox">
-                    <input type="checkbox" class="service-check" ${isSelected ? 'checked' : ''}>
-                    <span class="checkmark"></span>
-                </div>
-                <div class="service-info">
-                    <h4 class="service-name">${this.escapeHtml(service.name)}</h4>
-                    ${service.description ? `<p class="service-description">${this.escapeHtml(service.description)}</p>` : ''}
-                    <div class="service-price">
-                        <span class="price-value">${service.price_per_sqm || service.price}</span>
-                        <span class="price-unit">₴/м²</span>
-                    </div>
-                    <div class="service-calculation">
-                        <span class="calculation-details">
-                            ${this.getServiceCalculation(service)}
-                        </span>
-                    </div>
-                </div>
-            </div>
-        `;
+        // Оновлюємо список вибраних послуг
+        this.updateSelectedServicesList();
     }
 
     getServiceCalculation(service) {
-        const wallArea = parseFloat(document.getElementById('wall-area')?.value || this.roomData.initialWallArea || 0);
-        const floorArea = parseFloat(document.getElementById('floor-area')?.value || this.roomData.initialFloorArea || 0);
-
-        let quantity = wallArea; // За замовчуванням стіни
-
-        if (service.area_type === 'floor' || service.area_type === 'ceiling') {
-            quantity = floorArea;
+        let quantity = 0;
+        switch (service.area_type) {
+            case 'floor':
+            case 'ceiling':
+                quantity = parseFloat(this.roomData.floor_area) || 0;
+                break;
+            case 'walls':
+                quantity = parseFloat(this.roomData.wall_area) || 0;
+                break;
+            default:
+                quantity = parseFloat(this.roomData.wall_area) || 0;
         }
 
-        const pricePerSqm = parseFloat(service.price_per_sqm || service.price || 0);
-        const total = quantity * pricePerSqm;
-
-        return `${quantity.toFixed(2)} м² × ${pricePerSqm} ₴ = ${total.toFixed(2)} ₴`;
+        const total = quantity * parseFloat(service.price_per_sqm);
+        return `${quantity.toFixed(2)} м² × ${parseFloat(service.price_per_sqm).toFixed(2)} ₴ = ${total.toFixed(2)} ₴`;
     }
 
     bindServiceEvents() {
-        // Обробка вибору послуг
+        // Bind toggle buttons
+        document.querySelectorAll('.service-block .toggle-btn').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const block = e.target.closest('.service-block');
+                const content = block.querySelector('.service-block-content');
+                const icon = button.querySelector('i');
+
+                if (content.style.display === 'none') {
+                    content.style.display = 'block';
+                    icon.classList.remove('fa-chevron-right');
+                    icon.classList.add('fa-chevron-down');
+                } else {
+                    content.style.display = 'none';
+                    icon.classList.remove('fa-chevron-down');
+                    icon.classList.add('fa-chevron-right');
+                }
+            });
+        });
+
+        // Bind service checkboxes
         document.querySelectorAll('.service-check').forEach(checkbox => {
             checkbox.addEventListener('change', (e) => {
                 const serviceItem = e.target.closest('.service-item');
                 const serviceId = parseInt(serviceItem.dataset.serviceId);
 
                 if (e.target.checked) {
-                    serviceItem.classList.add('selected');
                     this.addService(serviceId);
                 } else {
-                    serviceItem.classList.remove('selected');
                     this.removeService(serviceId);
                 }
-
-                this.markAsChanged();
-                this.calculateTotal();
-            });
-        });
-
-        // Обробка розгортання блоків
-        document.querySelectorAll('.toggle-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.preventDefault();
-                const block = e.target.closest('.service-block');
-                const content = block.querySelector('.service-block-content');
-                const icon = btn.querySelector('i');
-
-                content.classList.toggle('collapsed');
-                icon.classList.toggle('fa-chevron-down');
-                icon.classList.toggle('fa-chevron-up');
             });
         });
     }
@@ -338,28 +495,73 @@ class RoomEditor {
             return;
         }
 
-        const wallArea = parseFloat(document.getElementById('wall-area')?.value || this.roomData.initialWallArea || 0);
-        const floorArea = parseFloat(document.getElementById('floor-area')?.value || this.roomData.initialFloorArea || 0);
-
-        let quantity = wallArea;
-        if (service.area_type === 'floor' || service.area_type === 'ceiling') {
-            quantity = floorArea;
+        // Визначаємо кількість (площу) для послуги
+        let quantity = 0;
+        switch (service.area_type) {
+            case 'floor':
+            case 'ceiling':
+                quantity = parseFloat(this.roomData.floor_area) || 0;
+                break;
+            case 'walls':
+                quantity = parseFloat(this.roomData.wall_area) || 0;
+                break;
+            default:
+                quantity = parseFloat(this.roomData.wall_area) || 0;
         }
 
-        const pricePerSqm = parseFloat(service.price_per_sqm || service.price || 0);
+        if (quantity <= 0) {
+            this.showError('Не вдалося визначити площу для послуги');
+            return;
+        }
 
-        this.selectedServices.set(serviceId, {
-            id: serviceId,
+        const total = quantity * parseFloat(service.price_per_sqm);
+
+        // Додаємо послугу до вибраних
+        this.selectedServices.set(service.id, {
+            id: service.id,
             name: service.name,
-            price_per_sqm: pricePerSqm,
+            price_per_sqm: service.price_per_sqm,
             area_type: service.area_type,
             quantity: quantity,
-            total: quantity * pricePerSqm
+            total: total
         });
+
+        // Оновлюємо відображення
+        this.markAsChanged();
+        this.updateSelectedServicesList();
+        this.calculateTotal();
+
+        // Оновлюємо розрахунок в списку послуг
+        const serviceElement = document.querySelector(`.service-check[data-service-id="${serviceId}"]`);
+        if (serviceElement) {
+            const serviceItem = serviceElement.closest('.service-item');
+            const calculationDetails = serviceItem.querySelector('.calculation-details');
+            if (calculationDetails) {
+                calculationDetails.textContent = this.getServiceCalculation(service);
+            }
+            serviceItem.classList.add('selected');
+        }
     }
 
     removeService(serviceId) {
+        // Видаляємо послугу з вибраних
         this.selectedServices.delete(serviceId);
+
+        // Оновлюємо відображення
+        this.markAsChanged();
+        this.updateSelectedServicesList();
+        this.calculateTotal();
+
+        // Оновлюємо розрахунок в списку послуг
+        const serviceElement = document.querySelector(`.service-check[data-service-id="${serviceId}"]`);
+        if (serviceElement) {
+            const serviceItem = serviceElement.closest('.service-item');
+            const calculationDetails = serviceItem.querySelector('.calculation-details');
+            if (calculationDetails) {
+                calculationDetails.textContent = '';
+            }
+            serviceItem.classList.remove('selected');
+        }
     }
 
     findServiceById(serviceId) {
@@ -368,7 +570,7 @@ class RoomEditor {
                 for (const block of area.service_blocks) {
                     if (block.services) {
                         for (const service of block.services) {
-                            if (service.id === serviceId) {
+                            if (service.id == serviceId) {
                                 return service;
                             }
                         }
@@ -380,73 +582,123 @@ class RoomEditor {
     }
 
     recalculateServices() {
-        const wallArea = parseFloat(document.getElementById('wall-area')?.value || 0);
-        const floorArea = parseFloat(document.getElementById('floor-area')?.value || 0);
-
-        // Оновлюємо вибрані послуги
+        // Оновлюємо розрахунки для всіх вибраних послуг
         this.selectedServices.forEach((service, serviceId) => {
-            let quantity = wallArea;
-            if (service.area_type === 'floor' || service.area_type === 'ceiling') {
-                quantity = floorArea;
+            let quantity = 0;
+            switch (service.area_type) {
+                case 'floor':
+                case 'ceiling':
+                    quantity = parseFloat(this.roomData.floor_area) || 0;
+                    break;
+                case 'walls':
+                    quantity = parseFloat(this.roomData.wall_area) || 0;
+                    break;
+                default:
+                    quantity = parseFloat(this.roomData.wall_area) || 0;
             }
 
-            service.quantity = quantity;
-            service.total = quantity * service.price_per_sqm;
-        });
+            const total = quantity * parseFloat(service.price_per_sqm);
 
-        // Оновлюємо відображення
-        document.querySelectorAll('.service-item').forEach(item => {
-            const serviceId = parseInt(item.dataset.serviceId);
-            const service = this.findServiceById(serviceId);
+            // Оновлюємо дані послуги
+            this.selectedServices.set(serviceId, {
+                ...service,
+                quantity: quantity,
+                total: total
+            });
 
-            if (service) {
-                const calculationEl = item.querySelector('.calculation-details');
-                if (calculationEl) {
-                    calculationEl.textContent = this.getServiceCalculation(service);
+            // Оновлюємо розрахунок в списку послуг
+            const serviceElement = document.querySelector(`.service-check[data-service-id="${serviceId}"]`);
+            if (serviceElement) {
+                const serviceItem = serviceElement.closest('.service-item');
+                const calculationDetails = serviceItem.querySelector('.calculation-details');
+                if (calculationDetails) {
+                    calculationDetails.textContent = this.getServiceCalculation(service);
                 }
             }
         });
 
+        // Оновлюємо відображення
+        this.markAsChanged();
+        this.updateSelectedServicesList();
         this.calculateTotal();
     }
 
     calculateTotal() {
         let total = 0;
         this.selectedServices.forEach(service => {
-            total += service.total || 0;
+            total += service.total;
         });
 
         // Оновлюємо відображення загальної суми
-        const totalEl = document.getElementById('total-cost');
-        if (totalEl) {
-            totalEl.textContent = `${total.toFixed(2)} ₴`;
+        const totalElement = document.getElementById('total-amount');
+        if (totalElement) {
+            totalElement.textContent = `${total.toFixed(2)} ₴`;
         }
 
-        // Оновлюємо список вибраних послуг
-        this.updateSelectedServicesList();
+        return total;
     }
 
     updateSelectedServicesList() {
         const selectedList = document.getElementById('selected-services-list');
         if (!selectedList) return;
 
+        // Очищаємо список
+        selectedList.innerHTML = '';
+
         if (this.selectedServices.size === 0) {
-            selectedList.innerHTML = '<p class="no-services">Оберіть послуги для розрахунку</p>';
+            selectedList.innerHTML = '<div class="no-services"><p>Не вибрано жодної послуги</p></div>';
             return;
         }
 
-        let html = '';
-        this.selectedServices.forEach(service => {
-            html += `
-                <div class="selected-service-item">
+        // Створюємо елементи для кожної вибраної послуги
+        this.selectedServices.forEach((service, serviceId) => {
+            const serviceElement = document.createElement('div');
+            serviceElement.className = 'selected-service-item';
+            serviceElement.innerHTML = `
+                <div class="service-info">
                     <span class="service-name">${this.escapeHtml(service.name)}</span>
-                    <span class="service-calculation">${service.quantity.toFixed(2)} м² × ${service.price_per_sqm} ₴</span>
-                    <span class="service-total">${service.total.toFixed(2)} ₴</span>
+                    <span class="service-area">${this.getAreaTypeText(service.area_type)}</span>
                 </div>
+                <div class="service-details">
+                    <span class="service-quantity">${service.quantity} м²</span>
+                    <span class="service-price">${service.price_per_sqm} ₴/м²</span>
+                    <span class="service-total">${service.total} ₴</span>
+                </div>
+                <button class="remove-service" data-service-id="${serviceId}">
+                    <i class="fas fa-times"></i>
+                </button>
             `;
+
+            // Додаємо обробник для кнопки видалення
+            const removeBtn = serviceElement.querySelector('.remove-service');
+            if (removeBtn) {
+                removeBtn.addEventListener('click', () => {
+                    this.removeService(serviceId);
+                });
+            }
+
+            selectedList.appendChild(serviceElement);
         });
 
-        selectedList.innerHTML = html;
+        // Оновлюємо загальну суму
+        const totalElement = document.getElementById('total-amount');
+        if (totalElement) {
+            const total = this.calculateTotal();
+            totalElement.textContent = `${total.toFixed(2)} ₴`;
+        }
+    }
+
+    getAreaTypeText(areaType) {
+        switch (areaType) {
+            case 'floor':
+                return 'Підлога';
+            case 'walls':
+                return 'Стіни';
+            case 'ceiling':
+                return 'Стеля';
+            default:
+                return 'Інше';
+        }
     }
 
     async saveChanges() {

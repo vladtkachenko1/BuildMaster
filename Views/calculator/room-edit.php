@@ -21,6 +21,17 @@ if (!$roomId) {
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/BuildMaster/UI/css/services-selection.css">
     <link rel="stylesheet" href="/BuildMaster/UI/css/calculator.css">
+    <script>
+        window.roomEditData = {
+            roomId: <?php echo json_encode($roomId); ?>,
+            roomName: <?php echo json_encode($roomName); ?>,
+            wallArea: <?php echo json_encode($wallArea); ?>,
+            floorArea: <?php echo json_encode($floorArea); ?>,
+            roomTypeId: <?php echo json_encode($roomTypeId); ?>,
+            roomTypeName: <?php echo json_encode($roomTypeName); ?>,
+            selectedServices: <?php echo json_encode($selectedServices ?? []); ?>
+        };
+    </script>
     <style>
         .room-edit-header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -83,6 +94,7 @@ if (!$roomId) {
             display: flex;
             align-items: center;
             gap: 0.5rem;
+            margin: 15px ;
         }
 
         .save-changes-btn:hover {
@@ -133,10 +145,264 @@ if (!$roomId) {
             display: none;
             align-items: center;
             gap: 0.5rem;
+            margin-left: 10px ;
         }
 
         .changes-indicator.show {
             display: flex;
+        }
+
+        .area-section {
+            margin-bottom: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .area-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background-color: #f8f9fa;
+            cursor: pointer;
+        }
+
+        .area-title {
+            margin: 0;
+            font-size: 1.2em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .area-title small {
+            font-size: 0.8em;
+            color: #666;
+            margin-left: 10px;
+        }
+
+        .area-content {
+            display: none;
+            padding: 15px;
+        }
+
+        .area-section.expanded .area-content {
+            display: block;
+        }
+
+        .service-block {
+            margin-bottom: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .service-block-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background-color: #f8f9fa;
+            cursor: pointer;
+        }
+
+        .block-info {
+            flex: 1;
+        }
+
+        .block-title {
+            margin: 0;
+            font-size: 1.1em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .block-description {
+            margin: 5px 0 0;
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .service-block-content {
+            display: none;
+            padding: 12px;
+        }
+
+        .service-block.expanded .service-block-content {
+            display: block;
+        }
+
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+        }
+
+        .service-item {
+            display: flex;
+            gap: 15px;
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            background-color: #fff;
+            transition: all 0.3s ease;
+        }
+
+        .service-item:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .service-item.selected {
+            background-color: #f0f7ff;
+            border-color: #007bff;
+        }
+
+        .service-checkbox {
+            position: relative;
+            width: 24px;
+            height: 24px;
+        }
+
+        .service-check {
+            position: absolute;
+            opacity: 0;
+            cursor: pointer;
+            height: 0;
+            width: 0;
+        }
+
+        .checkmark {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 24px;
+            width: 24px;
+            background-color: #fff;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .service-check:checked ~ .checkmark {
+            background-color: #007bff;
+            border-color: #007bff;
+        }
+
+        .checkmark:after {
+            content: "";
+            position: absolute;
+            display: none;
+            left: 8px;
+            top: 4px;
+            width: 5px;
+            height: 10px;
+            border: solid white;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+
+        .service-check:checked ~ .checkmark:after {
+            display: block;
+        }
+
+        .service-info {
+            flex: 1;
+        }
+
+        .service-name {
+            margin: 0 0 5px;
+            font-size: 1.1em;
+            color: #333;
+        }
+
+        .service-description {
+            margin: 0 0 10px;
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .service-price {
+            display: flex;
+            align-items: baseline;
+            gap: 5px;
+            margin-bottom: 5px;
+        }
+
+        .price-value {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        .price-unit {
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .service-calculation {
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .calculation-details {
+            display: block;
+            margin-top: 5px;
+        }
+
+        .toggle-btn {
+            background: none;
+            border: none;
+            padding: 5px;
+            cursor: pointer;
+            color: #666;
+            transition: transform 0.3s ease;
+        }
+
+        .service-block.expanded .toggle-btn i,
+        .area-section.expanded .toggle-btn i {
+            transform: rotate(180deg);
+        }
+
+        .no-services {
+            text-align: center;
+            padding: 30px;
+            color: #666;
+        }
+
+        /* Додаткові стилі для кращого відображення */
+        .service-block-header:hover {
+            background-color: #f0f0f0;
+        }
+
+        .service-item {
+            position: relative;
+        }
+
+        .service-item:hover {
+            border-color: #007bff;
+        }
+
+        .service-checkbox {
+            margin-top: 2px;
+        }
+
+        .block-toggle {
+            display: flex;
+            align-items: center;
+        }
+
+        .toggle-btn i {
+            transition: transform 0.3s ease;
+        }
+
+        .service-block-content {
+            background-color: #fff;
+        }
+
+        .services-grid {
+            margin-top: 10px;
         }
     </style>
 </head>
@@ -182,11 +448,6 @@ if (!$roomId) {
                 </div>
 
                 <div style="display: flex; gap: 1rem;">
-                    <button id="delete-room-btn" class="delete-room-btn">
-                        <i class="fas fa-trash-alt"></i>
-                        Видалити кімнату
-                    </button>
-
                     <button id="save-changes-btn" class="save-changes-btn" disabled>
                         <i class="fas fa-save"></i>
                         Зберегти зміни
@@ -262,15 +523,13 @@ if (!$roomId) {
                     <p class="block-description"></p>
                 </div>
                 <div class="block-toggle">
-                    <button class="toggle-btn">
+                    <button class="toggle-btn" type="button">
                         <i class="fas fa-chevron-down"></i>
                     </button>
                 </div>
             </div>
             <div class="service-block-content">
-                <div class="services-grid">
-                    <!-- Services will be inserted here -->
-                </div>
+                <div class="services-grid"></div>
             </div>
         </div>
     </template>
@@ -288,6 +547,9 @@ if (!$roomId) {
                 <div class="service-price">
                     <span class="price-value"></span>
                     <span class="price-unit">₴/м²</span>
+                </div>
+                <div class="service-calculation">
+                    <span class="calculation-details"></span>
                 </div>
             </div>
         </div>
@@ -343,15 +605,6 @@ if (!$roomId) {
     </div>
 </div>
 
-<script>
-    window.roomEditData = {
-        roomId: <?= json_encode($roomId) ?>,
-        roomTypeId: <?= json_encode($roomTypeId) ?>,
-        initialRoomName: <?= json_encode($roomName) ?>,
-        initialWallArea: <?= json_encode(floatval($wallArea)) ?>,
-        initialFloorArea: <?= json_encode(floatval($floorArea)) ?>
-    };
-</script>
 <script src="/BuildMaster/UI/js/room-edit.js"></script>
 </body>
 </html>

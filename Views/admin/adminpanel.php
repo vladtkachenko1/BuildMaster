@@ -37,9 +37,9 @@
                     <i class="fas fa-shopping-cart"></i>
                     Замовлення
                 </a></li>
-            <li><a href="?action=statistics" class="<?= $action === 'statistics' ? 'active' : '' ?>">
-                    <i class="fas fa-chart-bar"></i>
-                    Статистика
+            <li><a href="?action=create" class="<?= $action === 'create' ? 'active' : '' ?>">
+                    <i class="fas fa-wrench"></i>
+                    Послуги
                 </a></li>
         </ul>
     </div>

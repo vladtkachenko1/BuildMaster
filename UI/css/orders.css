@@ -512,3 +512,17 @@
 .modal-body::-webkit-scrollbar-thumb:hover {
     background: #666;
 }
+
+.modal-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.modal-actions .btn {
+    margin-right: 10px;
+}
+
+.modal-actions .close {
+    margin-left: auto;
+}

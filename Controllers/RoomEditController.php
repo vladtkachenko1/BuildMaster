@@ -2,6 +2,9 @@
 
 namespace BuildMaster\Controllers;
 
+// Явно підключаємо файл ServiceCalculatorController
+require_once __DIR__ . '/ServiceCalculatorController.php';
+
 class RoomEditController
 {
     private $database;
@@ -9,8 +12,32 @@ class RoomEditController
 
     public function __construct($database)
     {
-        $this->database = $database;
-        $this->serviceCalculatorController = new ServiceCalculatorController($database);
+        try {
+            error_log("=== ROOM EDIT CONTROLLER INIT ===");
+            $this->database = $database;
+            
+            if (!$this->database) {
+                throw new \Exception("Database connection is not initialized");
+            }
+            
+            error_log("Initializing ServiceCalculatorController");
+            if (!class_exists('BuildMaster\Controllers\ServiceCalculatorController')) {
+                throw new \Exception("ServiceCalculatorController class not found");
+            }
+            
+            $this->serviceCalculatorController = new ServiceCalculatorController($database);
+            
+            if (!$this->serviceCalculatorController) {
+                throw new \Exception("Failed to initialize ServiceCalculatorController");
+            }
+            
+            error_log("RoomEditController initialized successfully");
+            error_log("=== END ROOM EDIT CONTROLLER INIT ===");
+        } catch (\Exception $e) {
+            error_log("Error initializing RoomEditController: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
+            throw $e;
+        }
     }
 
     /**
@@ -89,12 +116,18 @@ class RoomEditController
             error_log("=== GET SERVICES WITH SELECTED DEBUG ===");
             error_log("Room type ID: " . $roomTypeId);
             error_log("Selected services count: " . count($selectedServices));
+            error_log("Selected services data: " . json_encode($selectedServices));
 
             // Створюємо мапу вибраних послуг для швидкого доступу
             $selectedMap = [];
             foreach ($selectedServices as $selected) {
                 $serviceId = intval($selected['service_id']);
-                $selectedMap[$serviceId] = $selected;
+                $selectedMap[$serviceId] = [
+                    'quantity' => floatval($selected['quantity']),
+                    'unit_price' => floatval($selected['unit_price']),
+                    'total_price' => floatval($selected['total_price']),
+                    'is_selected' => true
+                ];
                 error_log("Added to selectedMap: service_id=" . $serviceId . ", total=" . $selected['total_price']);
             }
 
@@ -111,21 +144,22 @@ class RoomEditController
                         if (isset($block['services'])) {
                             foreach ($block['services'] as &$service) {
                                 $serviceId = intval($service['id']);
-
-                                error_log("Checking service ID: " . $serviceId . " (Name: " . $service['name'] . ")");
+                                error_log("Processing service ID: " . $serviceId . " (Name: " . $service['name'] . ")");
 
                                 // Перевіряємо чи послуга вибрана
                                 if (isset($selectedMap[$serviceId])) {
-                                    $selectedService = $selectedMap[$serviceId];
-
+                                    $selectedData = $selectedMap[$serviceId];
                                     $service['is_selected'] = true;
-                                    $service['selected_quantity'] = $selectedService['quantity'];
-                                    $service['selected_unit_price'] = $selectedService['unit_price'];
-                                    $service['selected_total_price'] = $selectedService['total_price'];
+                                    $service['selected_quantity'] = $selectedData['quantity'];
+                                    $service['selected_unit_price'] = $selectedData['unit_price'];
+                                    $service['selected_total_price'] = $selectedData['total_price'];
 
-                                    error_log("✓ Service {$serviceId} ({$service['name']}) marked as SELECTED with total: {$selectedService['total_price']}");
+                                    error_log("✓ Service {$serviceId} ({$service['name']}) marked as SELECTED with total: {$selectedData['total_price']}");
                                 } else {
                                     $service['is_selected'] = false;
+                                    $service['selected_quantity'] = 0;
+                                    $service['selected_unit_price'] = $service['price_per_sqm'];
+                                    $service['selected_total_price'] = 0;
                                     error_log("✗ Service {$serviceId} ({$service['name']}) NOT selected");
                                 }
                             }
@@ -134,13 +168,14 @@ class RoomEditController
                 }
             }
 
-            error_log("Services with selection info prepared");
+            error_log("Final services data: " . json_encode($services));
             error_log("=== END GET SERVICES WITH SELECTED ===");
 
             return $services;
 
         } catch (\Exception $e) {
             error_log("Error in getGroupedServicesByRoomTypeWithSelected: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             return [];
         }
     }
@@ -305,42 +340,64 @@ class RoomEditController
     {
         try {
             error_log("=== GET SELECTED SERVICES DEBUG ===");
-            error_log("Getting selected services for room: " . $roomId);
+            error_log("Getting selected services for room ID: " . $roomId);
 
-            // ВИПРАВЛЕННЯ: Прибираємо умову is_selected = 1, оскільки в order_room_services
-            // зберігаються лише вибрані послуги
+            // First, let's check what's in the database directly
+            $checkStmt = $this->database->prepare("
+                SELECT * FROM order_room_services 
+                WHERE order_room_id = ?
+            ");
+            $checkStmt->execute([$roomId]);
+            $allServices = $checkStmt->fetchAll(\PDO::FETCH_ASSOC);
+            error_log("All services in database for room $roomId: " . json_encode($allServices));
+
+            // Modified query with proper JOIN conditions
             $stmt = $this->database->prepare("
-            SELECT 
-                ors.service_id,
-                ors.quantity,
-                ors.unit_price,
-                ors.total_price,
-                ors.is_selected,
-                s.name as service_name,
-                s.price_per_sqm,
-                COALESCE(sa.area_type, 'walls') as area_type
-            FROM order_room_services ors
-            JOIN services s ON ors.service_id = s.id
-            LEFT JOIN service_area sa ON s.id = sa.service_id
-            WHERE ors.order_room_id = ?
-            ORDER BY s.name
-        ");
+                SELECT 
+                    ors.service_id,
+                    ors.quantity,
+                    ors.unit_price,
+                    ors.total_price,
+                    ors.is_selected,
+                    s.name as service_name,
+                    s.price_per_sqm,
+                    COALESCE(sa.area_type, 'walls') as area_type,
+                    s.id as id,
+                    s.service_block_id
+                FROM order_room_services ors
+                INNER JOIN services s ON ors.service_id = s.id
+                LEFT JOIN service_area sa ON s.id = sa.service_id
+                WHERE ors.order_room_id = ? 
+                AND ors.is_selected = 1
+                ORDER BY s.name
+            ");
 
             $stmt->execute([$roomId]);
             $result = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-            error_log("SQL Query executed for room_id: " . $roomId);
-            error_log("Found " . count($result) . " services in order_room_services");
+            error_log("Found " . count($result) . " selected services in order_room_services");
+            error_log("Selected services data: " . json_encode($result));
 
-            if (count($result) > 0) {
-                foreach ($result as $service) {
-                    error_log("Found service: ID={$service['service_id']}, Name={$service['service_name']}, Price={$service['total_price']}, is_selected={$service['is_selected']}");
+            // If no results but we have services in the database, let's check why
+            if (empty($result) && !empty($allServices)) {
+                error_log("WARNING: No selected services found despite having services in database");
+                error_log("Checking service IDs in database: " . json_encode(array_column($allServices, 'service_id')));
+                
+                // Let's verify the services exist
+                $serviceIds = array_column($allServices, 'service_id');
+                if (!empty($serviceIds)) {
+                    $placeholders = str_repeat('?,', count($serviceIds) - 1) . '?';
+                    $serviceCheckStmt = $this->database->prepare("
+                        SELECT id, name FROM services 
+                        WHERE id IN ($placeholders)
+                    ");
+                    $serviceCheckStmt->execute($serviceIds);
+                    $existingServices = $serviceCheckStmt->fetchAll(\PDO::FETCH_ASSOC);
+                    error_log("Existing services in database: " . json_encode($existingServices));
                 }
-            } else {
-                error_log("No services found in order_room_services for room " . $roomId);
             }
 
-            error_log("=== END GET SELECTED SERVICES ===");
+            error_log("=== END GET SELECTED SERVICES DEBUG ===");
             return $result;
 
         } catch (\Exception $e) {
@@ -361,6 +418,15 @@ class RoomEditController
             error_log("=== GET SERVICES FOR EDIT DEBUG ===");
             error_log("Room ID: " . $roomId);
 
+            // Перевіряємо ініціалізацію контролерів
+            if (!$this->database) {
+                throw new \Exception("Database connection is not initialized");
+            }
+            
+            if (!$this->serviceCalculatorController) {
+                throw new \Exception("ServiceCalculatorController is not initialized");
+            }
+
             // Валідація ID
             if (!$roomId || !is_numeric($roomId) || intval($roomId) <= 0) {
                 error_log("Invalid room ID: " . $roomId);
@@ -374,24 +440,6 @@ class RoomEditController
 
             $roomId = intval($roomId);
 
-            // Додаткова діагностика
-            $this->debugServiceSelection($roomId);
-
-            // Перевіряємо існування кімнати
-            $checkStmt = $this->database->prepare("SELECT COUNT(*) FROM order_rooms WHERE id = ?");
-            $checkStmt->execute([$roomId]);
-            $roomExists = $checkStmt->fetchColumn();
-
-            if (!$roomExists) {
-                error_log("Room does not exist: " . $roomId);
-                http_response_code(404);
-                echo json_encode([
-                    'success' => false,
-                    'error' => 'Кімнату не знайдено'
-                ], JSON_UNESCAPED_UNICODE);
-                return;
-            }
-
             // Отримуємо дані кімнати
             $roomData = $this->getRoomData($roomId);
             if (!$roomData) {
@@ -404,30 +452,97 @@ class RoomEditController
                 return;
             }
 
-            // Перевіряємо доступ
-            if (!$this->hasAccessToRoom($roomId)) {
-                error_log("Access denied: " . $roomId);
-                http_response_code(403);
-                echo json_encode([
-                    'success' => false,
-                    'error' => 'Доступ заборонено'
-                ], JSON_UNESCAPED_UNICODE);
-                return;
+            error_log("Room data: " . json_encode($roomData));
+
+            try {
+                // Отримуємо всі послуги для типу кімнати
+                error_log("Getting services for room type: " . $roomData['room_type_id']);
+                if (!method_exists($this->serviceCalculatorController, 'getGroupedServicesByRoomType')) {
+                    throw new \Exception("Method getGroupedServicesByRoomType not found in ServiceCalculatorController");
+                }
+                $services = $this->serviceCalculatorController->getGroupedServicesByRoomType($roomData['room_type_id']);
+                error_log("Got all services for room type: " . count($services) . " areas");
+                error_log("Services data: " . json_encode($services));
+            } catch (\Exception $e) {
+                error_log("Error getting services: " . $e->getMessage());
+                error_log("Stack trace: " . $e->getTraceAsString());
+                throw new \Exception("Помилка отримання послуг: " . $e->getMessage());
             }
 
-            // КРИТИЧНО ВАЖЛИВО: Спочатку отримуємо вибрані послуги
-            $selectedServices = $this->getSelectedServices($roomId);
-            error_log("Selected services loaded: " . count($selectedServices));
-
-            if (empty($selectedServices)) {
-                error_log("WARNING: No selected services found for room " . $roomId);
-            } else {
-                error_log("Found selected services: " . json_encode(array_column($selectedServices, 'service_id')));
+            try {
+                // Отримуємо вибрані послуги
+                error_log("Getting selected services for room: " . $roomId);
+                $selectedServicesStmt = $this->database->prepare("
+                    SELECT 
+                        ors.service_id,
+                        ors.quantity,
+                        ors.unit_price,
+                        ors.total_price,
+                        s.name as service_name,
+                        s.price_per_sqm,
+                        COALESCE(a.area_type, 'walls') as area_type
+                    FROM order_room_services ors
+                    INNER JOIN services s ON ors.service_id = s.id
+                    LEFT JOIN service_area sa ON s.id = sa.service_id
+                    LEFT JOIN areas a ON sa.area_id = a.id
+                    WHERE ors.order_room_id = ? AND ors.is_selected = 1
+                ");
+                $selectedServicesStmt->execute([$roomId]);
+                $selectedServices = $selectedServicesStmt->fetchAll(\PDO::FETCH_ASSOC);
+                error_log("Selected services: " . json_encode($selectedServices));
+            } catch (\Exception $e) {
+                error_log("Error getting selected services: " . $e->getMessage());
+                error_log("Stack trace: " . $e->getTraceAsString());
+                throw new \Exception("Помилка отримання вибраних послуг: " . $e->getMessage());
             }
+            
+            // Створюємо мапу вибраних послуг для швидкого доступу
+            $selectedMap = [];
+            foreach ($selectedServices as $service) {
+                $selectedMap[$service['service_id']] = [
+                    'quantity' => floatval($service['quantity']),
+                    'unit_price' => floatval($service['unit_price']),
+                    'total_price' => floatval($service['total_price']),
+                    'service_name' => $service['service_name'],
+                    'price_per_sqm' => floatval($service['price_per_sqm']),
+                    'area_type' => $service['area_type']
+                ];
+            }
+            error_log("Selected services map: " . json_encode($selectedMap));
 
-            // Потім отримуємо послуги з інформацією про вибрані
-            $services = $this->getGroupedServicesByRoomTypeWithSelected($roomData['room_type_id'], $selectedServices);
-            error_log("Services with selection info loaded: " . count($services) . " areas");
+            try {
+                // Позначаємо вибрані послуги в основному масиві
+                error_log("Processing services to mark selected ones");
+                foreach ($services as &$area) {
+                    if (isset($area['service_blocks'])) {
+                        foreach ($area['service_blocks'] as &$block) {
+                            if (isset($block['services'])) {
+                                foreach ($block['services'] as &$service) {
+                                    $serviceId = intval($service['id']);
+                                    if (isset($selectedMap[$serviceId])) {
+                                        $selectedData = $selectedMap[$serviceId];
+                                        $service['is_selected'] = true;
+                                        $service['selected_quantity'] = $selectedData['quantity'];
+                                        $service['selected_unit_price'] = $selectedData['unit_price'];
+                                        $service['selected_total_price'] = $selectedData['total_price'];
+                                        error_log("Marked service {$serviceId} as selected with total: {$selectedData['total_price']}");
+                                    } else {
+                                        $service['is_selected'] = false;
+                                        $service['selected_quantity'] = 0;
+                                        $service['selected_unit_price'] = $service['price_per_sqm'];
+                                        $service['selected_total_price'] = 0;
+                                        error_log("Service {$serviceId} not selected");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                error_log("Error processing services: " . $e->getMessage());
+                error_log("Stack trace: " . $e->getTraceAsString());
+                throw new \Exception("Помилка обробки послуг: " . $e->getMessage());
+            }
 
             $response = [
                 'success' => true,
@@ -442,7 +557,7 @@ class RoomEditController
                 ]
             ];
 
-            error_log("Sending successful response with " . count($selectedServices) . " selected services");
+            error_log("Sending response with " . count($selectedServices) . " selected services");
             error_log("=== END GET SERVICES FOR EDIT ===");
 
             echo json_encode($response, JSON_UNESCAPED_UNICODE);
@@ -453,7 +568,11 @@ class RoomEditController
             http_response_code(500);
             echo json_encode([
                 'success' => false,
-                'error' => 'Помилка отримання послуг: ' . $e->getMessage()
+                'error' => 'Помилка отримання послуг: ' . $e->getMessage(),
+                'debug_info' => [
+                    'message' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]
             ], JSON_UNESCAPED_UNICODE);
         }
     }

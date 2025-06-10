@@ -165,6 +165,11 @@
                                                 title="Переглянути деталі">
                                             <i class="fas fa-eye"></i>
                                         </button>
+                                        <button class="btn btn-sm btn-success"
+                                                onclick="exportOrder(<?= $order['id'] ?>)"
+                                                title="Експортувати в CSV">
+                                            <i class="fas fa-download"></i>
+                                        </button>
                                         <button class="btn btn-sm btn-warning"
                                                 onclick="editOrder(<?= $order['id'] ?>)"
                                                 title="Редагувати">
@@ -276,7 +281,9 @@
     <div class="modal-content modal-lg">
         <div class="modal-header">
             <h2><i class="fas fa-file-invoice"></i> Деталі замовлення</h2>
-            <span class="close">&times;</span>
+            <div class="modal-actions">
+                <span class="close">&times;</span>
+            </div>
         </div>
         <div class="modal-body">
             <div id="orderDetails">

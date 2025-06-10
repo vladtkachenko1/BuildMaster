@@ -467,8 +467,7 @@ class OrderController
 
             echo json_encode([
                 'success' => true,
-                'order_id' => $orderId,
-                'redirect_url' => '/BuildMaster/calculator/order-success?order_id=' . $orderId
+                'order_id' => $orderId
             ]);
 
         } catch (\Exception $e) {

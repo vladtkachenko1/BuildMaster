@@ -156,7 +156,18 @@ document.addEventListener('DOMContentLoaded', function() {
                         localStorage.removeItem('guest_email');
                         localStorage.removeItem('guest_phone');
 
-                        window.location.href = data.redirect_url;
+                        // Закриваємо модальне вікно оформлення
+                        checkoutModal.style.display = 'none';
+
+                        // Показуємо повідомлення про успіх з callback для перенаправлення
+                        showSuccessMessage('Ваше замовлення прийняте, очікуйте відповідь менеджера.', function() {
+                            // Очищуємо всі дані замовлення
+                            localStorage.clear();
+                            sessionStorage.clear();
+
+                            // Перенаправляємо на сторінку кімнат замовлення
+                            window.location.href = '/BuildMaster/calculator/order-rooms';
+                        });
                     } else {
                         showError(data.error || 'Помилка оформлення замовлення');
                     }
@@ -300,3 +311,89 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+// ВИПРАВЛЕНА функція showSuccessMessage з підтримкою callback
+function showSuccessMessage(message, callback) {
+    // Створюємо елемент повідомлення
+    const successMessage = document.createElement('div');
+    successMessage.className = 'success-message';
+    successMessage.innerHTML = `
+        <div class="success-content">
+            <i class="fas fa-check-circle"></i>
+            <h3>${message}</h3>
+            <button class="success-close-btn">Зрозуміло</button>
+        </div>
+    `;
+
+    // Додаємо стилі
+    const style = document.createElement('style');
+    style.textContent = `
+        .success-message {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .success-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            text-align: center;
+            max-width: 400px;
+        }
+        .success-content i {
+            font-size: 3rem;
+            color: #4CAF50;
+            margin-bottom: 1rem;
+        }
+        .success-content h3 {
+            margin: 0 0 1.5rem 0;
+            color: #333;
+            font-size: 1.2rem;
+        }
+        .success-close-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        .success-close-btn:hover {
+            background: #45a049;
+        }
+    `;
+
+    document.head.appendChild(style);
+    document.body.appendChild(successMessage);
+
+    // Функція для закриття повідомлення та виконання callback
+    function closeMessage() {
+        document.body.removeChild(successMessage);
+        document.head.removeChild(style);
+
+        // Виконуємо callback якщо він передан
+        if (typeof callback === 'function') {
+            callback();
+        }
+    }
+
+    // Обробник закриття повідомлення
+    const closeBtn = successMessage.querySelector('.success-close-btn');
+    closeBtn.addEventListener('click', closeMessage);
+
+    // Закриття при кліку поза модальним вікном
+    successMessage.addEventListener('click', function(e) {
+        if (e.target === successMessage) {
+            closeMessage();
+        }
+    });
+}

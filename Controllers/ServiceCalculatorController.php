@@ -79,7 +79,7 @@ class ServiceCalculatorController
             LEFT JOIN services s ON sb.id = s.service_block_id
             LEFT JOIN service_area sa ON s.id = sa.service_id
             LEFT JOIN areas a ON sa.area_id = a.id
-            WHERE sb.room_type_id = ?
+            WHERE sb.room_type_id = ? AND s.is_active = 1
             ORDER BY a.id ASC, sb.sort_order ASC, s.name ASC
         ");
             $stmt->execute([$roomTypeId]);
@@ -88,13 +88,13 @@ class ServiceCalculatorController
             $groupedByArea = [];
 
             foreach ($result as $row) {
-                $areaId = $row['area_id'];
-                $blockId = $row['block_id'];
-
-                // Пропускаємо рядки без area_id (послуги без прив'язки до областей)
-                if (!$areaId) {
+                // Пропускаємо записи без area_id
+                if (!$row['area_id']) {
                     continue;
                 }
+
+                $areaId = $row['area_id'];
+                $blockId = $row['block_id'];
 
                 // Створюємо групу для області якщо її ще немає
                 if (!isset($groupedByArea[$areaId])) {
@@ -137,7 +137,7 @@ class ServiceCalculatorController
                             'slug' => $row['service_slug'],
                             'description' => $row['service_description'],
                             'price_per_sqm' => $row['price_per_sqm'],
-                            'area_type' => $row['area_type'] // Додаємо тип області для розрахунку площі
+                            'area_type' => $row['area_type']
                         ];
                     }
                 }
@@ -146,8 +146,20 @@ class ServiceCalculatorController
             // Конвертуємо асоціативні масиви в індексовані
             $result = [];
             foreach ($groupedByArea as $area) {
-                $area['service_blocks'] = array_values($area['service_blocks']);
-                $result[] = $area;
+                // Перевіряємо чи є в області блоки з послугами
+                $hasServices = false;
+                foreach ($area['service_blocks'] as $block) {
+                    if (!empty($block['services'])) {
+                        $hasServices = true;
+                        break;
+                    }
+                }
+
+                // Додаємо область тільки якщо в ній є послуги
+                if ($hasServices) {
+                    $area['service_blocks'] = array_values($area['service_blocks']);
+                    $result[] = $area;
+                }
             }
 
             return $result;

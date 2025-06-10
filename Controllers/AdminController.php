@@ -52,8 +52,14 @@ class AdminController {
             case 'get_order':
                 $this->getOrder();
                 break;
-            case 'statistics':
-                $this->statistics();
+            case 'export_order':
+                $this->exportOrder();
+                break;
+            case 'create':
+                $this->create();
+                break;
+            case 'service_store':
+                $this->storeService();
                 break;
             case 'export_users':
                 $this->exportUsers();
@@ -589,14 +595,23 @@ class AdminController {
         include __DIR__ . '/../Views/admin/adminpanel.php';
     }
 
-    public function statistics() {
-        $action = 'statistics';
-        $monthlyStats = $this->getMonthlyStats();
-        $ordersByStatus = $this->getOrdersByStatus();
-        $topServices = $this->getTopServices();
-        $avgOrderAmount = $this->getAverageOrderAmount();
+    public function create() {
+        $serviceBlocks = $this->getServiceBlocks();
+        $areas = $this->getAreas();
+        include 'Views/admin/service_create.php';
+    }
+    private function getServiceBlocks() {
+        $query = "SELECT * FROM service_blocks WHERE is_active = 1 ORDER BY sort_order, name";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 
-        include __DIR__ . '/../Views/admin/statistics.php';
+    private function getAreas() {
+        $query = "SELECT * FROM areas ORDER BY area_type, name";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     private function getDashboardStats() {
@@ -904,5 +919,249 @@ class AdminController {
 
         http_response_code(405);
         echo json_encode(['error' => 'Метод не дозволено']);
+    }
+
+    public function exportOrder() {
+        $orderId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+
+        if (!$orderId) {
+            http_response_code(400);
+            echo "Невірний ID замовлення";
+            return;
+        }
+
+        try {
+            // Отримуємо основні дані замовлення
+            $stmt = $this->db->prepare("
+                SELECT o.*, u.first_name, u.last_name, u.email as user_email, u.phone as user_phone
+                FROM orders o 
+                LEFT JOIN users u ON o.user_id = u.id 
+                WHERE o.id = :id
+            ");
+            $stmt->bindParam(':id', $orderId, PDO::PARAM_INT);
+            $stmt->execute();
+            $order = $stmt->fetch();
+
+            if (!$order) {
+                http_response_code(404);
+                echo "Замовлення не знайдено";
+                return;
+            }
+
+            // Отримуємо кімнати замовлення
+            $stmt = $this->db->prepare("
+                SELECT or_rooms.*, rt.name as room_type_name,
+                       (SELECT COALESCE(SUM(ors.total_price), 0) 
+                        FROM order_room_services ors 
+                        WHERE ors.order_room_id = or_rooms.id AND ors.is_selected = 1) as total_amount
+                FROM order_rooms or_rooms
+                LEFT JOIN room_types rt ON or_rooms.room_type_id = rt.id
+                WHERE or_rooms.order_id = :order_id
+                ORDER BY or_rooms.id
+            ");
+            $stmt->bindParam(':order_id', $orderId, PDO::PARAM_INT);
+            $stmt->execute();
+            $rooms = $stmt->fetchAll();
+
+            // Для кожної кімнати отримуємо послуги
+            foreach ($rooms as &$room) {
+                $stmt = $this->db->prepare("
+                    SELECT ors.*, s.name as service_name, s.unit, s.price_per_sqm as price
+                    FROM order_room_services ors
+                    LEFT JOIN services s ON ors.service_id = s.id
+                    WHERE ors.order_room_id = :room_id AND ors.is_selected = 1
+                    ORDER BY s.name
+                ");
+                $stmt->bindParam(':room_id', $room['id'], PDO::PARAM_INT);
+                $stmt->execute();
+                $services = $stmt->fetchAll();
+                $room['services'] = $services;
+            }
+
+            // Встановлюємо заголовки для завантаження CSV
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename=order_' . str_pad($orderId, 4, '0', STR_PAD_LEFT) . '_' . date('Y-m-d_H-i-s') . '.csv');
+            header('Cache-Control: no-cache, must-revalidate');
+            header('Pragma: no-cache');
+            header('Expires: 0');
+
+            // Перевіряємо, чи заголовки були встановлені
+            if (headers_sent($file, $line)) {
+                error_log("Headers already sent in $file on line $line");
+                throw new Exception('Headers already sent');
+            }
+
+            $output = fopen('php://output', 'w');
+
+            // BOM для правильного відображення UTF-8 в Excel
+            fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
+
+            // Заголовок замовлення
+            fputcsv($output, ['Замовлення #' . str_pad($orderId, 4, '0', STR_PAD_LEFT)]);
+            fputcsv($output, []);
+
+            // Інформація про клієнта
+            fputcsv($output, ['Інформація про клієнта']);
+            if ($order['user_id']) {
+                fputcsv($output, ['Тип клієнта', 'Зареєстрований']);
+                fputcsv($output, ['Ім\'я', $order['first_name'] . ' ' . $order['last_name']]);
+                fputcsv($output, ['Email', $order['user_email']]);
+                fputcsv($output, ['Телефон', $order['user_phone']]);
+            } else {
+                fputcsv($output, ['Тип клієнта', 'Гість']);
+                fputcsv($output, ['Ім\'я', $order['guest_name'] ?? 'Не вказано']);
+                fputcsv($output, ['Email', $order['guest_email'] ?? 'Не вказано']);
+                fputcsv($output, ['Телефон', $order['guest_phone'] ?? 'Не вказано']);
+            }
+            fputcsv($output, []);
+
+            // Інформація про кімнати
+            fputcsv($output, ['Кімнати']);
+            fputcsv($output, ['Тип кімнати', 'Площа', 'Кількість', 'Вартість', 'Загальна вартість']);
+            foreach ($rooms as $room) {
+                fputcsv($output, [
+                    $room['room_type_name'],
+                    $room['area'] . ' м²',
+                    $room['quantity'],
+                    number_format($room['price_per_sqm'], 2) . ' грн/м²',
+                    number_format($room['total_amount'], 2) . ' грн'
+                ]);
+
+                // Послуги для кожної кімнати
+                if (!empty($room['services'])) {
+                    fputcsv($output, ['', 'Послуги:']);
+                    fputcsv($output, ['', 'Назва послуги', 'Площа', 'Одиниця', 'Ціна', 'Загальна вартість']);
+                    foreach ($room['services'] as $service) {
+                        fputcsv($output, [
+                            '',
+                            $service['service_name'],
+                            $service['area'] . ' м²',
+                            $service['unit'],
+                            number_format($service['price'], 2) . ' грн',
+                            number_format($service['total_price'], 2) . ' грн'
+                        ]);
+                    }
+                }
+                fputcsv($output, []);
+            }
+
+            // Загальна інформація
+            fputcsv($output, ['Загальна інформація']);
+            fputcsv($output, ['Статус', $this->getOrderStatusLabel($order['status'])]);
+            fputcsv($output, ['Загальна сума', number_format($order['total_amount'], 2) . ' грн']);
+            fputcsv($output, ['Дата створення', date('d.m.Y H:i', strtotime($order['created_at']))]);
+            if (!empty($order['notes'])) {
+                fputcsv($output, ['Нотатки клієнта', $order['notes']]);
+            }
+            if (!empty($order['admin_notes'])) {
+                fputcsv($output, ['Нотатки адміністратора', $order['admin_notes']]);
+            }
+
+            fclose($output);
+            exit;
+
+        } catch (PDOException $e) {
+            error_log("Error in exportOrder: " . $e->getMessage());
+            http_response_code(500);
+            echo "Помилка експорту даних";
+        } catch (Exception $e) {
+            error_log("Error in exportOrder: " . $e->getMessage());
+            http_response_code(500);
+            echo "Помилка експорту даних: " . $e->getMessage();
+        }
+    }
+
+    private function getOrderStatusLabel($status) {
+        $labels = [
+            'draft' => 'Чернетка',
+            'new' => 'Новий',
+            'in_progress' => 'В роботі',
+            'completed' => 'Завершено'
+        ];
+        return $labels[$status] ?? $status;
+    }
+
+    public function storeService() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('HTTP/1.1 405 Method Not Allowed');
+            echo json_encode(['success' => false, 'message' => 'Метод не дозволено']);
+            return;
+        }
+
+        try {
+            // Валідація даних
+            $name = trim($_POST['name'] ?? '');
+            $slug = trim($_POST['slug'] ?? '');
+            $description = trim($_POST['description'] ?? '');
+            $service_block_id = intval($_POST['service_block_id'] ?? 0);
+            $price_per_sqm = floatval($_POST['price_per_sqm'] ?? 0);
+            $unit = trim($_POST['unit'] ?? 'м²');
+            $is_required = isset($_POST['is_required']) ? 1 : 0;
+            $is_active = isset($_POST['is_active']) ? 1 : 0;
+            $sort_order = intval($_POST['sort_order'] ?? 0);
+            $selected_areas = $_POST['areas'] ?? [];
+
+            // Перевірка обов'язкових полів
+            if (empty($name) || empty($slug) || $service_block_id <= 0 || $price_per_sqm <= 0) {
+                throw new Exception('Всі обов\'язкові поля повинні бути заповнені');
+            }
+
+            // Перевірка унікальності slug
+            $stmt = $this->db->prepare("SELECT id FROM services WHERE slug = ?");
+            $stmt->execute([$slug]);
+            if ($stmt->fetch()) {
+                throw new Exception('URL-слаг вже існує');
+            }
+
+            // Початок транзакції
+            $this->db->beginTransaction();
+
+            // Вставка послуги
+            $stmt = $this->db->prepare("
+                INSERT INTO services (name, slug, description, service_block_id, price_per_sqm, unit, 
+                                    is_required, is_active, sort_order, created_at) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+            ");
+
+            $stmt->execute([
+                $name, $slug, $description, $service_block_id,
+                $price_per_sqm, $unit, $is_required,
+                $is_active, $sort_order
+            ]);
+
+            $service_id = $this->db->lastInsertId();
+
+            // Додавання зв'язків з областями застосування
+            if (!empty($selected_areas)) {
+                $area_stmt = $this->db->prepare("INSERT INTO service_area (service_id, area_id) VALUES (?, ?)");
+                foreach ($selected_areas as $area_id) {
+                    $area_id = intval($area_id);
+                    $area_stmt->execute([$service_id, $area_id]);
+                }
+            }
+
+            // Підтвердження транзакції
+            $this->db->commit();
+
+            // Повернення успішної відповіді
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => true,
+                'message' => 'Послугу успішно створено',
+                'service_id' => $service_id
+            ]);
+
+        } catch (Exception $e) {
+            // Відкат транзакції при помилці
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => false,
+                'message' => $e->getMessage()
+            ]);
+        }
     }
 }
