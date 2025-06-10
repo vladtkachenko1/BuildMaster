@@ -14,7 +14,7 @@ $isAdmin = $isLoggedIn && isset($_SESSION['user']['is_admin']) && $_SESSION['use
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BuildMaster - Професійні будівельні та ремонтні послуги</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/BuildMaster/UI/css/index.css">
+    <link rel="stylesheet" href="/BuildMaster/UI/css/home.css">
 </head>
 <body>
 
@@ -289,7 +289,7 @@ $isAdmin = $isLoggedIn && isset($_SESSION['user']['is_admin']) && $_SESSION['use
     </div>
 </div>
 
-<script src="UI/js/index.js"></script>
+<script src="/BuildMaster/UI/js/index.js"></script>
 
 </body>
 </html>

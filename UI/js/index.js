@@ -90,14 +90,33 @@ if (statsSection) {
 }
 
 function openModal() {
-    document.getElementById('contactModal').style.display = 'block';
-    document.body.style.overflow = 'hidden';
+    document.getElementById('contactModal').classList.add('active');
 }
 
 function closeModal() {
-    document.getElementById('contactModal').style.display = 'none';
-    document.body.style.overflow = 'auto';
+    document.getElementById('contactModal').classList.remove('active');
 }
+document.addEventListener('click', function(event) {
+    const modals = ['contactModal', 'loginModal', 'registerModal'];
+
+    modals.forEach(modalId => {
+        const modal = document.getElementById(modalId);
+        if (event.target === modal) {
+            modal.classList.remove('active');
+        }
+    });
+});
+
+// Закриття модалу при натисканні Escape
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        const activeModals = document.querySelectorAll('.modal.active');
+        activeModals.forEach(modal => {
+            modal.classList.remove('active');
+        });
+    }
+});
+
 
 window.addEventListener('click', function (event) {
     const modal = document.getElementById('contactModal');
@@ -479,28 +498,4 @@ if (logoutBtn) {
         logout();
     });
 }
-
-function showError(message, targetId) {
-    const el = document.getElementById(targetId);
-    if (!el) {
-        console.warn(`showError: Element with id "${targetId}" not found.`);
-        return;
-    }
-
-    el.textContent = message;
-    el.style.display = 'block';
-
-    requestAnimationFrame(() => {
-        el.style.opacity = '1';
-    });
-
-    setTimeout(() => {
-        el.style.opacity = '0';
-        setTimeout(() => {
-            el.style.display = 'none';
-            el.textContent = '';
-        }, 300);
-    }, 3000);
-}
-
 
