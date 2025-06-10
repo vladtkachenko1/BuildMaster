@@ -15,22 +15,22 @@ class RoomEditController
         try {
             error_log("=== ROOM EDIT CONTROLLER INIT ===");
             $this->database = $database;
-            
+
             if (!$this->database) {
                 throw new \Exception("Database connection is not initialized");
             }
-            
+
             error_log("Initializing ServiceCalculatorController");
             if (!class_exists('BuildMaster\Controllers\ServiceCalculatorController')) {
                 throw new \Exception("ServiceCalculatorController class not found");
             }
-            
+
             $this->serviceCalculatorController = new ServiceCalculatorController($database);
-            
+
             if (!$this->serviceCalculatorController) {
                 throw new \Exception("Failed to initialize ServiceCalculatorController");
             }
-            
+
             error_log("RoomEditController initialized successfully");
             error_log("=== END ROOM EDIT CONTROLLER INIT ===");
         } catch (\Exception $e) {
@@ -177,50 +177,6 @@ class RoomEditController
             error_log("Error in getGroupedServicesByRoomTypeWithSelected: " . $e->getMessage());
             error_log("Stack trace: " . $e->getTraceAsString());
             return [];
-        }
-    }
-    private function debugServiceSelection($roomId)
-    {
-        try {
-            error_log("=== DEBUG SERVICE SELECTION ===");
-
-            // Перевіряємо що є в order_room_services
-            $stmt = $this->database->prepare("
-            SELECT service_id, quantity, unit_price, total_price, is_selected 
-            FROM order_room_services 
-            WHERE order_room_id = ?
-        ");
-            $stmt->execute([$roomId]);
-            $roomServices = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-
-            error_log("Services in order_room_services for room $roomId:");
-            foreach ($roomServices as $rs) {
-                error_log("- Service ID: {$rs['service_id']}, is_selected: {$rs['is_selected']}, total: {$rs['total_price']}");
-            }
-
-            // Перевіряємо всі доступні послуги для типу кімнати
-            $roomData = $this->getRoomData($roomId);
-            if ($roomData) {
-                $allServices = $this->serviceCalculatorController->getGroupedServicesByRoomType($roomData['room_type_id']);
-                error_log("All available services for room type {$roomData['room_type_id']}:");
-
-                foreach ($allServices as $area) {
-                    if (isset($area['service_blocks'])) {
-                        foreach ($area['service_blocks'] as $block) {
-                            if (isset($block['services'])) {
-                                foreach ($block['services'] as $service) {
-                                    error_log("- Service ID: {$service['id']}, Name: {$service['name']}");
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            error_log("=== END DEBUG SERVICE SELECTION ===");
-
-        } catch (\Exception $e) {
-            error_log("Error in debugServiceSelection: " . $e->getMessage());
         }
     }
     /**
@@ -382,7 +338,7 @@ class RoomEditController
             if (empty($result) && !empty($allServices)) {
                 error_log("WARNING: No selected services found despite having services in database");
                 error_log("Checking service IDs in database: " . json_encode(array_column($allServices, 'service_id')));
-                
+
                 // Let's verify the services exist
                 $serviceIds = array_column($allServices, 'service_id');
                 if (!empty($serviceIds)) {
@@ -422,7 +378,7 @@ class RoomEditController
             if (!$this->database) {
                 throw new \Exception("Database connection is not initialized");
             }
-            
+
             if (!$this->serviceCalculatorController) {
                 throw new \Exception("ServiceCalculatorController is not initialized");
             }
@@ -495,7 +451,7 @@ class RoomEditController
                 error_log("Stack trace: " . $e->getTraceAsString());
                 throw new \Exception("Помилка отримання вибраних послуг: " . $e->getMessage());
             }
-            
+
             // Створюємо мапу вибраних послуг для швидкого доступу
             $selectedMap = [];
             foreach ($selectedServices as $service) {
@@ -656,8 +612,6 @@ class RoomEditController
                     $addedServicesCount++;
                 }
             }
-
-            // Оновлюємо загальну суму замовлення через OrderController
             $roomData = $this->getRoomData($roomId);
             $orderController = new \BuildMaster\Controllers\OrderController($this->database);
             $orderController->updateOrderTotalAmount($roomData['order_id']);
@@ -693,8 +647,6 @@ class RoomEditController
         if ($areaType) {
             return $this->getAreaByAreaType($areaType, $wallArea, $floorArea);
         }
-
-        // Fallback - визначаємо за назвою послуги
         try {
             $stmt = $this->database->prepare("SELECT name FROM services WHERE id = ?");
             $stmt->execute([$serviceId]);

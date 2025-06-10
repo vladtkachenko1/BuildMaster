@@ -162,13 +162,13 @@ class RoomEditor {
         try {
             this.showLoading(true);
             const response = await fetch(`/BuildMaster/calculator/room-edit-services/${this.roomData.roomId}`);
-            
+
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            
+
             const data = await response.json();
-            
+
             if (!data.success) {
                 throw new Error(data.error || 'Помилка отримання даних');
             }
@@ -180,14 +180,14 @@ class RoomEditor {
                     ...data.room_data
                 };
             }
-            
+
             // Фільтруємо пусті блоки послуг
-            this.services = (data.services || []).filter(area => 
-                area.service_blocks && 
-                area.service_blocks.length > 0 && 
+            this.services = (data.services || []).filter(area =>
+                area.service_blocks &&
+                area.service_blocks.length > 0 &&
                 area.service_blocks.some(block => block.services && block.services.length > 0)
             );
-            
+
             // Очищаємо та оновлюємо вибрані послуги
             this.selectedServices.clear();
             this.services.forEach(area => {
@@ -357,7 +357,7 @@ class RoomEditor {
                                 serviceCheck.setAttribute('data-price', service.price_per_sqm);
                                 serviceCheck.setAttribute('data-name', service.name);
                                 serviceCheck.setAttribute('data-area-type', area.area_type);
-                                
+
                                 if (service.is_selected) {
                                     serviceCheck.checked = true;
                                     serviceItem.classList.add('selected');
