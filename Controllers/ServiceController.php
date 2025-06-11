@@ -1,677 +1,817 @@
 <?php
 
-class ServiceController {
-    private $conn; // PDO connection
+namespace BuildMaster\Controllers;
 
-    public function __construct($connection) {
-        $this->conn = $connection;
+class ServiceCalculatorController
+{
+    private $database;
+
+    public function __construct($database)
+    {
+        $this->database = $database;
     }
 
-    public function index() {
-        $services = $this->getAllServices();
-        include 'Views/admin/services.php';
-    }
-
-    public function create() {
-        $serviceBlocks = $this->getServiceBlocks();
-        $areas = $this->getAreas();
-        include 'Views/admin/service_create.php';
-    }
-
-    public function store() {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            header('HTTP/1.1 405 Method Not Allowed');
-            exit;
-        }
-
-        // Увімкнути буферизацію
-        ob_start();
-
+    public function getServiceBlocksByRoomType($roomTypeId)
+    {
         try {
-            // Валідація даних
-            $name = trim($_POST['name'] ?? '');
-            $slug = trim($_POST['slug'] ?? '');
-            $description = trim($_POST['description'] ?? '');
-            $service_block_id = intval($_POST['service_block_id'] ?? 0);
-            $price_per_sqm = floatval($_POST['price_per_sqm'] ?? 0);
-            $unit = trim($_POST['unit'] ?? 'м²');
-            $depends_on_service_id = !empty($_POST['depends_on_service_id']) ? intval($_POST['depends_on_service_id']) : null;
-            $is_required = isset($_POST['is_required']) ? 1 : 0;
-            $is_active = isset($_POST['is_active']) ? 1 : 0;
-            $sort_order = intval($_POST['sort_order'] ?? 0);
-            $selected_areas = $_POST['areas'] ?? [];
-
-            // Перевірка обов'язкових полів
-            if (empty($name) || empty($slug) || $service_block_id <= 0 || $price_per_sqm <= 0) {
-                throw new Exception('Всі обов\'язкові поля повинні бути заповнені');
-            }
-
-            // Перевірка унікальності slug
-            if ($this->slugExists($slug)) {
-                throw new Exception('URL-слаг вже існує');
-            }
-
-            // Початок транзакції
-            $this->conn->beginTransaction();
-
-            // Вставка послуги
-            $stmt = $this->conn->prepare("
-                INSERT INTO services (name, slug, description, service_block_id, price_per_sqm, unit, 
-                                    depends_on_service_id, is_required, is_active, sort_order, created_at) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+            $stmt = $this->database->prepare("
+                SELECT id, name, slug, description, sort_order 
+                FROM service_blocks 
+                WHERE room_type_id = ? 
+                ORDER BY sort_order ASC
             ");
+            $stmt->execute([$roomTypeId]);
+            $result = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-            $stmt->execute([
-                $name, $slug, $description, $service_block_id,
-                $price_per_sqm, $unit, $depends_on_service_id, $is_required,
-                $is_active, $sort_order
-            ]);
-
-            $service_id = $this->conn->lastInsertId();
-
-            // Додавання зв'язків з областями застосування
-            if (!empty($selected_areas)) {
-                $area_stmt = $this->conn->prepare("INSERT INTO service_area (service_id, area_id) VALUES (?, ?)");
-                foreach ($selected_areas as $area_id) {
-                    $area_id = intval($area_id);
-                    $area_stmt->execute([$service_id, $area_id]);
-                }
-            }
-
-            // Підтвердження транзакції
-            $this->conn->commit();
-
-            // Очистити буфер та повернути успішну відповідь
-            ob_end_clean();
-            header('Content-Type: application/json');
-            echo json_encode([
-                'success' => true,
-                'message' => 'Послугу успішно створено',
-                'service_id' => $service_id
-            ]);
-
-        } catch (Exception $e) {
-            // Відкат транзакції при помилці
-            $this->conn->rollback();
-
-            // Очистити буфер та повернути помилку
-            ob_end_clean();
-            header('Content-Type: application/json');
-            echo json_encode([
-                'success' => false,
-                'message' => $e->getMessage()
-            ]);
-        }
-    }
-
-    public function edit($id) {
-        $service = $this->getServiceById($id);
-        if (!$service) {
-            header('Location: ?page=services&error=Service not found');
-            exit;
-        }
-
-        $serviceBlocks = $this->getServiceBlocks();
-        $areas = $this->getAreas();
-        $serviceAreas = $this->getServiceAreas($id);
-
-        include 'Views/admin/service_edit.php';
-    }
-
-    public function update($id) {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            header('HTTP/1.1 405 Method Not Allowed');
-            exit;
-        }
-
-        // Увімкнути буферизацію
-        ob_start();
-
-        try {
-            // Валідація даних
-            $name = trim($_POST['name'] ?? '');
-            $slug = trim($_POST['slug'] ?? '');
-            $description = trim($_POST['description'] ?? '');
-            $service_block_id = intval($_POST['service_block_id'] ?? 0);
-            $price_per_sqm = floatval($_POST['price_per_sqm'] ?? 0);
-            $unit = trim($_POST['unit'] ?? 'м²');
-            $depends_on_service_id = !empty($_POST['depends_on_service_id']) ? intval($_POST['depends_on_service_id']) : null;
-            $is_required = isset($_POST['is_required']) ? 1 : 0;
-            $is_active = isset($_POST['is_active']) ? 1 : 0;
-            $sort_order = intval($_POST['sort_order'] ?? 0);
-            $selected_areas = $_POST['areas'] ?? [];
-
-            // Перевірка обов'язкових полів
-            if (empty($name) || empty($slug) || $service_block_id <= 0 || $price_per_sqm <= 0) {
-                throw new Exception('Всі обов\'язкові поля повинні бути заповнені');
-            }
-
-            // Перевірка унікальності slug
-            if ($this->slugExists($slug, $id)) {
-                throw new Exception('URL-слаг вже існує');
-            }
-
-            // Початок транзакції
-            $this->conn->beginTransaction();
-
-            // Оновлення послуги
-            $stmt = $this->conn->prepare("
-                UPDATE services SET 
-                    name = ?, slug = ?, description = ?, service_block_id = ?, 
-                    price_per_sqm = ?, unit = ?, depends_on_service_id = ?, 
-                    is_required = ?, is_active = ?, sort_order = ?, updated_at = NOW()
-                WHERE id = ?
-            ");
-
-            $stmt->execute([
-                $name, $slug, $description, $service_block_id,
-                $price_per_sqm, $unit, $depends_on_service_id, $is_required,
-                $is_active, $sort_order, $id
-            ]);
-
-            // Видалення старих зв'язків з областями
-            $delete_stmt = $this->conn->prepare("DELETE FROM service_area WHERE service_id = ?");
-            $delete_stmt->execute([$id]);
-
-            // Додавання нових зв'язків з областями застосування
-            if (!empty($selected_areas)) {
-                $area_stmt = $this->conn->prepare("INSERT INTO service_area (service_id, area_id) VALUES (?, ?)");
-                foreach ($selected_areas as $area_id) {
-                    $area_id = intval($area_id);
-                    $area_stmt->execute([$id, $area_id]);
-                }
-            }
-
-            // Підтвердження транзакції
-            $this->conn->commit();
-
-            // Очистити буфер та повернути успішну відповідь
-            ob_end_clean();
-            header('Content-Type: application/json');
-            echo json_encode([
-                'success' => true,
-                'message' => 'Послугу успішно оновлено'
-            ]);
-
-        } catch (Exception $e) {
-            // Відкат транзакції при помилці
-            $this->conn->rollback();
-
-            // Очистити буфер та повернути помилку
-            ob_end_clean();
-            header('Content-Type: application/json');
-            echo json_encode([
-                'success' => false,
-                'message' => $e->getMessage()
-            ]);
+            return $result;
+        } catch (\Exception $e) {
+            error_log("Error getting service blocks: " . $e->getMessage());
+            return [];
         }
     }
 
     /**
-     * Швидке оновлення ціни послуги
+     * Отримує всі послуги для конкретного блоку послуг
      */
-    public function updatePrice($id) {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            header('HTTP/1.1 405 Method Not Allowed');
-            exit;
-        }
-
-        // Увімкнути буферизацію
-        ob_start();
-
+    public function getServicesByBlock($serviceBlockId)
+    {
         try {
-            // Валідація ID
-            $service_id = intval($id);
-            if ($service_id <= 0) {
-                throw new Exception('Невірний ID послуги');
-            }
-
-            // Отримання та валідація нової ціни
-            $new_price = floatval($_POST['price'] ?? 0);
-            if ($new_price <= 0) {
-                throw new Exception('Ціна повинна бути більше 0');
-            }
-
-            // Перевірка існування послуги
-            $service = $this->getServiceById($service_id);
-            if (!$service) {
-                throw new Exception('Послуга не знайдена');
-            }
-
-            // Збереження старої ціни для логування
-            $old_price = $service['price_per_sqm'];
-
-            // Оновлення ціни
-            $stmt = $this->conn->prepare("
-                UPDATE services 
-                SET price_per_sqm = ?, updated_at = NOW() 
-                WHERE id = ?
+            $stmt = $this->database->prepare("
+                SELECT id, name, slug, description, price_per_sqm 
+                FROM services 
+                WHERE service_block_id = ? 
+                ORDER BY name ASC
             ");
+            $stmt->execute([$serviceBlockId]);
+            $result = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-            $stmt->execute([$new_price, $service_id]);
-
-            // Перевірка чи оновлення пройшло успішно
-            if ($stmt->rowCount() === 0) {
-                throw new Exception('Не вдалося оновити ціну');
-            }
-
-            // Логування зміни ціни (якщо потрібно)
-            error_log("Price updated for service ID {$service_id}: {$old_price} -> {$new_price}");
-
-            // Очистити буфер та повернути успішну відповідь
-            ob_end_clean();
-            header('Content-Type: application/json');
-            echo json_encode([
-                'success' => true,
-                'message' => 'Ціну успішно оновлено',
-                'old_price' => $old_price,
-                'new_price' => $new_price,
-                'service_name' => $service['name']
-            ]);
-
-        } catch (Exception $e) {
-            // Очистити буфер та повернути помилку
-            ob_end_clean();
-            header('Content-Type: application/json');
-            echo json_encode([
-                'success' => false,
-                'message' => $e->getMessage()
-            ]);
+            return $result;
+        } catch (\Exception $e) {
+            error_log("Error getting services: " . $e->getMessage());
+            return [];
         }
     }
 
     /**
-     * Видалення послуги з перевірками
+     * Отримує всі послуги згруповані по блокам для конкретного типу кімнати
      */
-    public function delete($id) {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $_SERVER['REQUEST_METHOD'] !== 'DELETE') {
-            header('HTTP/1.1 405 Method Not Allowed');
-            exit;
-        }
-
-        // Увімкнути буферизацію
-        ob_start();
-
+    public function getGroupedServicesByRoomType($roomTypeId)
+    {
         try {
-            $service_id = intval($id);
-            if ($service_id <= 0) {
-                throw new Exception('Невірний ID послуги');
-            }
+            $stmt = $this->database->prepare("
+            SELECT 
+                sb.id as block_id,
+                sb.name as block_name,
+                sb.slug as block_slug,
+                sb.description as block_description,
+                sb.sort_order as block_sort_order,
+                s.id as service_id,
+                s.name as service_name,
+                s.slug as service_slug,
+                s.description as service_description,
+                s.price_per_sqm,
+                a.id as area_id,
+                a.name as area_name,
+                a.slug as area_slug,
+                a.area_type
+            FROM service_blocks sb
+            LEFT JOIN services s ON sb.id = s.service_block_id
+            LEFT JOIN service_area sa ON s.id = sa.service_id
+            LEFT JOIN areas a ON sa.area_id = a.id
+            WHERE sb.room_type_id = ? AND s.is_active = 1
+            ORDER BY a.id ASC, sb.sort_order ASC, s.name ASC
+        ");
+            $stmt->execute([$roomTypeId]);
+            $result = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-            // Перевірка чи існує послуга
-            $service = $this->getServiceById($service_id);
-            if (!$service) {
-                throw new Exception('Послуга не знайдена');
-            }
+            $groupedByArea = [];
 
-            // Перевірка чи послуга використовується в замовленнях
-            if ($this->isServiceUsedInOrders($service_id)) {
-                throw new Exception('Неможливо видалити послугу, яка використовується в замовленнях. Спочатку деактивуйте її.');
-            }
-
-            // Перевірка чи від неї залежать інші послуги
-            if ($this->hasServiceDependencies($service_id)) {
-                throw new Exception('Неможливо видалити послугу, від якої залежать інші послуги');
-            }
-
-            // Початок транзакції
-            $this->conn->beginTransaction();
-
-            // Видалення зв'язків з областями
-            $delete_areas_stmt = $this->conn->prepare("DELETE FROM service_area WHERE service_id = ?");
-            $delete_areas_stmt->execute([$service_id]);
-
-            // Видалення послуги
-            $delete_service_stmt = $this->conn->prepare("DELETE FROM services WHERE id = ?");
-            $delete_service_stmt->execute([$service_id]);
-
-            // Перевірка чи видалення пройшло успішно
-            if ($delete_service_stmt->rowCount() === 0) {
-                throw new Exception('Не вдалося видалити послугу');
-            }
-
-            // Підтвердження транзакції
-            $this->conn->commit();
-
-            // Логування видалення
-            error_log("Service deleted: ID {$service_id}, Name: {$service['name']}");
-
-            // Очистити буфер та повернути успішну відповідь
-            ob_end_clean();
-            header('Content-Type: application/json');
-            echo json_encode([
-                'success' => true,
-                'message' => 'Послугу "' . $service['name'] . '" успішно видалено',
-                'deleted_service' => [
-                    'id' => $service_id,
-                    'name' => $service['name']
-                ]
-            ]);
-
-        } catch (Exception $e) {
-            // Відкат транзакції при помилці
-            if ($this->conn->inTransaction()) {
-                $this->conn->rollback();
-            }
-
-            // Очистити буфер та повернути помилку
-            ob_end_clean();
-            header('Content-Type: application/json');
-            echo json_encode([
-                'success' => false,
-                'message' => $e->getMessage()
-            ]);
-        }
-    }
-
-    /**
-     * Масове видалення послуг
-     */
-    public function bulkDelete() {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            header('HTTP/1.1 405 Method Not Allowed');
-            exit;
-        }
-
-        // Увімкнути буферизацію
-        ob_start();
-
-        try {
-            $service_ids = $_POST['service_ids'] ?? [];
-
-            if (empty($service_ids) || !is_array($service_ids)) {
-                throw new Exception('Не вибрано жодної послуги для видалення');
-            }
-
-            // Валідація ID
-            $validated_ids = [];
-            foreach ($service_ids as $id) {
-                $id = intval($id);
-                if ($id > 0) {
-                    $validated_ids[] = $id;
+            foreach ($result as $row) {
+                // Пропускаємо записи без area_id
+                if (!$row['area_id']) {
+                    continue;
                 }
-            }
 
-            if (empty($validated_ids)) {
-                throw new Exception('Невірні ID послуг');
-            }
+                $areaId = $row['area_id'];
+                $blockId = $row['block_id'];
 
-            $deleted_services = [];
-            $errors = [];
+                // Створюємо групу для області якщо її ще немає
+                if (!isset($groupedByArea[$areaId])) {
+                    $groupedByArea[$areaId] = [
+                        'area_id' => $row['area_id'],
+                        'area_name' => $row['area_name'],
+                        'area_slug' => $row['area_slug'],
+                        'area_type' => $row['area_type'],
+                        'service_blocks' => []
+                    ];
+                }
 
-            // Початок транзакції
-            $this->conn->beginTransaction();
+                // Створюємо блок послуг якщо його ще немає в цій області
+                if (!isset($groupedByArea[$areaId]['service_blocks'][$blockId])) {
+                    $groupedByArea[$areaId]['service_blocks'][$blockId] = [
+                        'id' => $row['block_id'],
+                        'name' => $row['block_name'],
+                        'slug' => $row['block_slug'],
+                        'description' => $row['block_description'],
+                        'sort_order' => $row['block_sort_order'],
+                        'services' => []
+                    ];
+                }
 
-            foreach ($validated_ids as $service_id) {
-                try {
-                    // Перевірка існування послуги
-                    $service = $this->getServiceById($service_id);
-                    if (!$service) {
-                        $errors[] = "Послуга з ID {$service_id} не знайдена";
-                        continue;
+                // Додаємо послугу якщо вона існує
+                if ($row['service_id']) {
+                    // Перевіряємо чи послуга вже додана (щоб уникнути дублікатів)
+                    $serviceExists = false;
+                    foreach ($groupedByArea[$areaId]['service_blocks'][$blockId]['services'] as $existingService) {
+                        if ($existingService['id'] == $row['service_id']) {
+                            $serviceExists = true;
+                            break;
+                        }
                     }
 
-                    // Перевірки перед видаленням
-                    if ($this->isServiceUsedInOrders($service_id)) {
-                        $errors[] = "Послугу '{$service['name']}' неможливо видалити - використовується в замовленнях";
-                        continue;
-                    }
-
-                    if ($this->hasServiceDependencies($service_id)) {
-                        $errors[] = "Послугу '{$service['name']}' неможливо видалити - від неї залежать інші послуги";
-                        continue;
-                    }
-
-                    // Видалення зв'язків з областями
-                    $delete_areas_stmt = $this->conn->prepare("DELETE FROM service_area WHERE service_id = ?");
-                    $delete_areas_stmt->execute([$service_id]);
-
-                    // Видалення послуги
-                    $delete_service_stmt = $this->conn->prepare("DELETE FROM services WHERE id = ?");
-                    $delete_service_stmt->execute([$service_id]);
-
-                    if ($delete_service_stmt->rowCount() > 0) {
-                        $deleted_services[] = [
-                            'id' => $service_id,
-                            'name' => $service['name']
+                    if (!$serviceExists) {
+                        $groupedByArea[$areaId]['service_blocks'][$blockId]['services'][] = [
+                            'id' => $row['service_id'],
+                            'name' => $row['service_name'],
+                            'slug' => $row['service_slug'],
+                            'description' => $row['service_description'],
+                            'price_per_sqm' => $row['price_per_sqm'],
+                            'area_type' => $row['area_type']
                         ];
                     }
-
-                } catch (Exception $e) {
-                    $errors[] = "Помилка при видаленні послуги з ID {$service_id}: " . $e->getMessage();
                 }
             }
 
-            // Підтвердження транзакції
-            $this->conn->commit();
+            // Конвертуємо асоціативні масиви в індексовані
+            $result = [];
+            foreach ($groupedByArea as $area) {
+                // Перевіряємо чи є в області блоки з послугами
+                $hasServices = false;
+                foreach ($area['service_blocks'] as $block) {
+                    if (!empty($block['services'])) {
+                        $hasServices = true;
+                        break;
+                    }
+                }
 
-            // Логування
-            if (!empty($deleted_services)) {
-                $deleted_names = array_column($deleted_services, 'name');
-                error_log("Bulk delete completed. Deleted services: " . implode(', ', $deleted_names));
+                // Додаємо область тільки якщо в ній є послуги
+                if ($hasServices) {
+                    $area['service_blocks'] = array_values($area['service_blocks']);
+                    $result[] = $area;
+                }
             }
 
-            // Очистити буфер та повернути результат
-            ob_end_clean();
+            return $result;
+
+        } catch (\Exception $e) {
+            error_log("Error getting grouped services: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    public function saveRoomWithServices()
+    {
+        // Початок буферизації для контролю над виводом
+        ob_start();
+
+        try {
             header('Content-Type: application/json');
-            echo json_encode([
+
+            if (session_status() === PHP_SESSION_NONE) {
+                session_start();
+            }
+
+            $input = json_decode(file_get_contents('php://input'), true);
+
+            if (!$input) {
+                throw new \Exception('Немає даних для збереження');
+            }
+
+            error_log("=== SAVE ROOM WITH SERVICES ===");
+            error_log("Input data: " . json_encode($input));
+
+            // Отримуємо дані з запиту
+            $roomTypeId = $input['room_type_id'] ?? null;
+            $wallArea = floatval($input['wall_area'] ?? 0);
+            $floorArea = floatval($input['floor_area'] ?? 0);
+            $roomName = $input['room_name'] ?? 'Нова кімната';
+            $selectedServices = $input['selected_services'] ?? [];
+
+            // Якщо немає даних в запиту, спробуємо взяти з сесії
+            if (!$roomTypeId && isset($_SESSION['room_data'])) {
+                $roomTypeId = $_SESSION['room_data']['room_type_id'];
+                $wallArea = $_SESSION['room_data']['wall_area'];
+                $floorArea = $_SESSION['room_data']['floor_area'];
+            }
+
+            // Валідація
+            if (!$roomTypeId || $wallArea <= 0 || $floorArea <= 0 || empty($selectedServices)) {
+                throw new \Exception('Не всі обов\'язкові поля заповнені');
+            }
+
+            $this->database->beginTransaction();
+
+            // Отримуємо або створюємо замовлення для сесії
+            $orderId = $this->getOrCreateDraftOrder();
+            error_log("Order ID: {$orderId}");
+
+            // Додаємо кімнату
+            $stmt = $this->database->prepare("
+            INSERT INTO order_rooms (order_id, room_type_id, wall_area, floor_area, room_name, created_at) 
+            VALUES (?, ?, ?, ?, ?, NOW())
+        ");
+
+            if (!$stmt->execute([$orderId, $roomTypeId, $wallArea, $floorArea, $roomName])) {
+                error_log("Failed to insert room: " . implode(", ", $stmt->errorInfo()));
+                throw new \Exception('Помилка створення кімнати');
+            }
+
+            $roomId = $this->database->lastInsertId();
+            error_log("Created room with ID: {$roomId}");
+
+            // Додаємо послуги для кімнати
+            $totalRoomAmount = 0;
+            $addedServicesCount = 0;
+
+            foreach ($selectedServices as $serviceData) {
+                $serviceId = $serviceData['id'] ?? null;
+                $areaType = $serviceData['area_type'] ?? null;
+                $pricePerSqm = floatval($serviceData['price_per_sqm'] ?? $serviceData['price'] ?? 0);
+
+                if (!$serviceId || $pricePerSqm <= 0) {
+                    error_log("Invalid service data: " . json_encode($serviceData));
+                    continue;
+                }
+
+                // Визначаємо площу залежно від типу послуги або area_type
+                if ($areaType) {
+                    $quantity = $this->getAreaByAreaType($areaType, $wallArea, $floorArea);
+                } else {
+                    // Fallback - визначаємо за назвою послуги
+                    $stmt = $this->database->prepare("SELECT name FROM services WHERE id = ?");
+                    $stmt->execute([$serviceId]);
+                    $service = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+                    if ($service) {
+                        $serviceName = strtolower($service['name']);
+                        if (strpos($serviceName, 'підлог') !== false ||
+                            strpos($serviceName, 'пол') !== false ||
+                            strpos($serviceName, 'стел') !== false ||
+                            strpos($serviceName, 'потолок') !== false) {
+                            $quantity = $floorArea;
+                        } else {
+                            $quantity = $wallArea;
+                        }
+                    } else {
+                        $quantity = $wallArea;
+                    }
+                }
+
+                if ($quantity <= 0) {
+                    error_log("Invalid quantity for service: {$serviceId}");
+                    continue;
+                }
+
+                $totalPrice = $pricePerSqm * $quantity;
+                $totalRoomAmount += $totalPrice;
+
+                error_log("Service: ID={$serviceId}, quantity={$quantity}, price={$pricePerSqm}, total={$totalPrice}");
+
+                // Додаємо послугу до order_room_services
+                $stmt = $this->database->prepare("
+                INSERT INTO order_room_services 
+                (order_room_id, service_id, quantity, unit_price, is_selected, created_at) 
+                VALUES (?, ?, ?, ?, 1, NOW())
+            ");
+
+                if ($stmt->execute([$roomId, $serviceId, $quantity, $pricePerSqm])) {
+                    $addedServicesCount++;
+                    error_log("Successfully added service {$serviceId} to room {$roomId}");
+                } else {
+                    error_log("Failed to insert service {$serviceId}: " . implode(", ", $stmt->errorInfo()));
+                }
+            }
+
+            if ($addedServicesCount === 0) {
+                throw new \Exception('Жодну послугу не було додано');
+            }
+
+            // Оновлюємо загальну суму замовлення
+            $this->updateOrderTotal($orderId);
+
+            $this->database->commit();
+
+            // Очищуємо дані з сесії
+            unset($_SESSION['room_data']);
+
+            error_log("Room saved successfully. Room total: {$totalRoomAmount}, Services added: {$addedServicesCount}");
+
+            // Створюємо успішну відповідь
+            $response = json_encode([
                 'success' => true,
-                'message' => count($deleted_services) . ' послуг успішно видалено',
-                'deleted_services' => $deleted_services,
-                'errors' => $errors,
-                'total_processed' => count($validated_ids),
-                'successfully_deleted' => count($deleted_services)
+                'order_id' => $orderId,
+                'room_id' => $roomId,
+                'room_total' => $totalRoomAmount,
+                'services_added' => $addedServicesCount,
+                'message' => 'Кімнату успішно додано до замовлення',
+                'redirect_url' => '/BuildMaster/calculator/order-rooms'
             ]);
 
-        } catch (Exception $e) {
-            // Відкат транзакції при помилці
-            if ($this->conn->inTransaction()) {
-                $this->conn->rollback();
-            }
-
-            // Очистити буфер та повернути помилку
+            // Очищуємо буфер і виводимо відповідь
             ob_end_clean();
-            header('Content-Type: application/json');
+            echo $response;
+            flush();
+
+        } catch (\Exception $e) {
+            if ($this->database->inTransaction()) {
+                $this->database->rollBack();
+            }
+            error_log("Error saving room with services: " . $e->getMessage());
+
+            // У випадку помилки очищуємо буфер і виводимо помилку
+            ob_end_clean();
             echo json_encode([
                 'success' => false,
-                'message' => $e->getMessage()
+                'error' => $e->getMessage()
             ]);
+            flush();
         }
     }
 
-    // Приватні методи для перевірок
-
-    /**
-     * Перевірка чи послуга використовується в замовленнях
-     */
-    private function isServiceUsedInOrders($service_id) {
-        try {
-            $stmt = $this->conn->prepare("
-                SELECT COUNT(*) as count 
-                FROM order_services 
-                WHERE service_id = ?
-            ");
-            $stmt->execute([$service_id]);
-            $result = $stmt->fetch();
-            return $result['count'] > 0;
-        } catch (PDOException $e) {
-            error_log("Database error in isServiceUsedInOrders: " . $e->getMessage());
-            return true; // У випадку помилки вважаємо що використовується (безпечніше)
+    private function getAreaByAreaType($areaType, $wallArea, $floorArea)
+    {
+        switch ($areaType) {
+            case 'walls':
+                return (float)$wallArea;
+            case 'floor':
+            case 'ceiling':
+                return (float)$floorArea;
+            default:
+                return (float)$wallArea;
         }
     }
 
     /**
-     * Перевірка чи від послуги залежать інші послуги
+     * Отримує або створює чернетку замовлення
      */
-    private function hasServiceDependencies($service_id) {
-        try {
-            $stmt = $this->conn->prepare("
-                SELECT COUNT(*) as count 
-                FROM services 
-                WHERE depends_on_service_id = ?
-            ");
-            $stmt->execute([$service_id]);
-            $result = $stmt->fetch();
-            return $result['count'] > 0;
-        } catch (PDOException $e) {
-            error_log("Database error in hasServiceDependencies: " . $e->getMessage());
-            return true; // У випадку помилки вважаємо що є залежності (безпечніше)
-        }
-    }
-
-    // Існуючі приватні методи
-
-    private function getAllServices() {
-        try {
-            $query = "
-                SELECT s.*, sb.name as block_name, 
-                       GROUP_CONCAT(DISTINCT a.name SEPARATOR ', ') as areas
-                FROM services s
-                LEFT JOIN service_blocks sb ON s.service_block_id = sb.id
-                LEFT JOIN service_area sa ON s.id = sa.service_id
-                LEFT JOIN areas a ON sa.area_id = a.id
-                GROUP BY s.id
-                ORDER BY sb.name, s.sort_order, s.name
-            ";
-
-            $stmt = $this->conn->prepare($query);
-            $stmt->execute();
-            return $stmt->fetchAll();
-        } catch (PDOException $e) {
-            error_log("Database error in getAllServices: " . $e->getMessage());
-            return [];
-        }
-    }
-
-    private function getServiceById($id) {
-        try {
-            $stmt = $this->conn->prepare("SELECT * FROM services WHERE id = ?");
-            $stmt->execute([$id]);
-            return $stmt->fetch();
-        } catch (PDOException $e) {
-            error_log("Database error in getServiceById: " . $e->getMessage());
-            return false;
-        }
-    }
-
-    private function getServiceBlocks() {
-        try {
-            $stmt = $this->conn->prepare("SELECT * FROM service_blocks WHERE is_active = 1 ORDER BY sort_order, name");
-            $stmt->execute();
-            return $stmt->fetchAll();
-        } catch (PDOException $e) {
-            error_log("Database error in getServiceBlocks: " . $e->getMessage());
-            return [];
-        }
-    }
-
-    private function getAreas() {
-        try {
-            $stmt = $this->conn->prepare("SELECT * FROM areas ORDER BY area_type, name");
-            $stmt->execute();
-            return $stmt->fetchAll();
-        } catch (PDOException $e) {
-            error_log("Database error in getAreas: " . $e->getMessage());
-            return [];
-        }
-    }
-
-    private function getServiceAreas($service_id) {
-        try {
-            $stmt = $this->conn->prepare("SELECT area_id FROM service_area WHERE service_id = ?");
-            $stmt->execute([$service_id]);
-            $result = $stmt->fetchAll();
-
-            $areas = [];
-            foreach ($result as $row) {
-                $areas[] = $row['area_id'];
+    private function getOrCreateDraftOrder()
+    {
+        // Спочатку перевіряємо, чи є активне замовлення в сесії
+        if (isset($_SESSION['current_order_id'])) {
+            $stmt = $this->database->prepare("SELECT id FROM orders WHERE id = ? AND status = 'draft'");
+            $stmt->execute([$_SESSION['current_order_id']]);
+            if ($stmt->fetch()) {
+                return $_SESSION['current_order_id'];
             }
-            return $areas;
-        } catch (PDOException $e) {
-            error_log("Database error in getServiceAreas: " . $e->getMessage());
-            return [];
         }
-    }
 
-    private function getServicesByBlock($block_id) {
-        try {
-            $stmt = $this->conn->prepare("SELECT id, name FROM services WHERE service_block_id = ? AND is_active = 1 ORDER BY sort_order, name");
-            $stmt->execute([$block_id]);
-            return $stmt->fetchAll();
-        } catch (PDOException $e) {
-            error_log("Database error in getServicesByBlock: " . $e->getMessage());
-            return [];
-        }
-    }
+        // Перевіряємо чи користувач залогінений
+        $userId = $_SESSION['user']['id'] ?? null;
 
-    private function slugExists($slug, $exclude_id = null) {
-        try {
-            $query = "SELECT id FROM services WHERE slug = ?";
-            $params = [$slug];
+        if ($userId) {
+            // Шукаємо існуюче draft замовлення користувача
+            $stmt = $this->database->prepare("
+            SELECT id FROM orders 
+            WHERE user_id = ? AND status = 'draft' 
+            ORDER BY created_at DESC LIMIT 1
+        ");
+            $stmt->execute([$userId]);
+            $existingOrder = $stmt->fetch(\PDO::FETCH_ASSOC);
 
-            if ($exclude_id) {
-                $query .= " AND id != ?";
-                $params[] = $exclude_id;
+            if ($existingOrder) {
+                $_SESSION['current_order_id'] = $existingOrder['id'];
+                return $existingOrder['id'];
             }
+        }
 
-            $stmt = $this->conn->prepare($query);
-            $stmt->execute($params);
-            $result = $stmt->fetch();
+        // Створюємо нове замовлення
+        $stmt = $this->database->prepare("
+        INSERT INTO orders (user_id, status, total_amount, created_at, updated_at) 
+        VALUES (?, 'draft', 0.00, NOW(), NOW())
+    ");
+        $stmt->execute([$userId]);
+        $orderId = $this->database->lastInsertId();
 
-            return $result !== false;
-        } catch (PDOException $e) {
-            error_log("Database error in slugExists: " . $e->getMessage());
-            return false;
+        // Зберігаємо в сесії
+        $_SESSION['current_order_id'] = $orderId;
+
+        return $orderId;
+    }
+
+    /**
+     * Оновлює загальну суму замовлення
+     */
+    function updateOrderTotal($orderId)
+    {
+        try {
+            // Використовуємо обчислювальне поле total_price з таблиці order_room_services
+            $stmt = $this->database->prepare("
+            SELECT COALESCE(SUM(ors.total_price), 0) as total
+            FROM order_room_services ors
+            JOIN order_rooms or_room ON ors.order_room_id = or_room.id
+            WHERE or_room.order_id = ? AND ors.is_selected = 1
+        ");
+            $stmt->execute([$orderId]);
+            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            $total = $result['total'] ?? 0;
+
+            $stmt = $this->database->prepare("
+            UPDATE orders 
+            SET total_amount = ?, updated_at = NOW() 
+            WHERE id = ?
+        ");
+            $stmt->execute([$total, $orderId]);
+
+            error_log("Updated order total: {$total} for order ID: {$orderId}");
+
+            return $total;
+        } catch (\Exception $e) {
+            error_log("Error updating order total: " . $e->getMessage());
+            throw $e;
         }
     }
 
-    public function getServicesByBlockAjax() {
-        // Увімкнути буферизацію
+    /**
+     * Отримує поточні кімнати замовлення з буферизацією
+     */
+    public function getCurrentOrderRooms()
+    {
         ob_start();
+
+        try {
+            header('Content-Type: application/json');
+
+            $orderId = $_SESSION['current_order_id'] ?? null;
+
+            if (!$orderId) {
+                $response = json_encode(['rooms' => []]);
+                ob_end_clean();
+                echo $response;
+                flush();
+                return;
+            }
+
+            $stmt = $this->database->prepare("
+            SELECT 
+                ord_room.id,
+                ord_room.room_name,
+                ord_room.wall_area,
+                ord_room.floor_area,
+                rt.name as room_type_name,
+                COALESCE(SUM(CASE WHEN ors.is_selected = 1 THEN ors.total_price ELSE 0 END), 0) as total_cost,
+                COUNT(CASE WHEN ors.is_selected = 1 THEN ors.id END) as services_count
+            FROM order_rooms ord_room
+            LEFT JOIN room_types rt ON ord_room.room_type_id = rt.id
+            LEFT JOIN order_room_services ors ON ord_room.id = ors.order_room_id 
+            WHERE ord_room.order_id = ?
+            GROUP BY ord_room.id, ord_room.room_name, ord_room.wall_area, ord_room.floor_area, rt.name
+            ORDER BY ord_room.created_at DESC
+        ");
+            $stmt->execute([$orderId]);
+            $rooms = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            // Додаємо детальну інформацію про послуги для кожної кімнати
+            foreach ($rooms as &$room) {
+                $stmt = $this->database->prepare("
+                SELECT 
+                    ors.id,
+                    ors.quantity,
+                    ors.unit_price,
+                    ors.total_price,
+                    s.name as service_name,
+                    s.description as service_description,
+                    sb.name as block_name
+                FROM order_room_services ors
+                JOIN services s ON ors.service_id = s.id
+                JOIN service_blocks sb ON s.service_block_id = sb.id
+                WHERE ors.order_room_id = ? AND ors.is_selected = 1
+                ORDER BY sb.sort_order, s.name
+            ");
+                $stmt->execute([$room['id']]);
+                $room['services'] = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            }
+
+            $response = json_encode(['rooms' => $rooms]);
+            ob_end_clean();
+            echo $response;
+            flush();
+
+        } catch (\Exception $e) {
+            error_log("Error getting current order rooms: " . $e->getMessage());
+            ob_end_clean();
+            echo json_encode(['error' => $e->getMessage()]);
+            flush();
+        }
+    }
+
+    public function getRoomDetails($roomId)
+    {
+        ob_start();
+
+        try {
+            header('Content-Type: application/json');
+
+            // Отримуємо основну інформацію про кімнату
+            $stmt = $this->database->prepare("
+            SELECT 
+                or.*,
+                rt.name as room_type_name,
+                COALESCE(SUM(CASE WHEN ors.is_selected = 1 THEN ors.total_price ELSE 0 END), 0) as room_total_cost
+            FROM order_rooms or
+            LEFT JOIN room_types rt ON or.room_type_id = rt.id
+            LEFT JOIN order_room_services ors ON or.id = ors.order_room_id
+            WHERE or.id = ?
+            GROUP BY or.id
+        ");
+            $stmt->execute([$roomId]);
+            $room = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            if (!$room) {
+                throw new Exception('Кімнату не знайдено');
+            }
+
+            // Отримуємо послуги кімнати з детальною інформацією
+            $stmt = $this->database->prepare("
+            SELECT 
+                ors.id,
+                ors.quantity,
+                ors.unit_price,
+                ors.total_price,
+                ors.is_selected,
+                s.name as service_name,
+                s.description as service_description,
+                s.price_per_sqm,
+                sb.name as block_name,
+                sb.description as block_description,
+                a.area_type,
+                a.name as area_name
+            FROM order_room_services ors
+            JOIN services s ON ors.service_id = s.id
+            JOIN service_blocks sb ON s.service_block_id = sb.id
+            LEFT JOIN service_area sa ON s.id = sa.service_id
+            LEFT JOIN areas a ON sa.area_id = a.id
+            WHERE ors.order_room_id = ? AND ors.is_selected = 1
+            ORDER BY sb.sort_order, s.name
+        ");
+            $stmt->execute([$roomId]);
+            $services = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            $room['services'] = $services;
+
+            $response = json_encode($room);
+            ob_end_clean();
+            echo $response;
+            flush();
+
+        } catch (Exception $e) {
+            error_log("Error getting room details: " . $e->getMessage());
+            ob_end_clean();
+            echo json_encode(['error' => $e->getMessage()]);
+            flush();
+        }
+    }
+
+    public function getAreaByType($roomId, $areaType)
+    {
+        try {
+            $columnMap = [
+                'floor' => 'floor_area',
+                'walls' => 'wall_area',
+                'ceiling' => 'ceiling_area'
+            ];
+
+            if (!isset($columnMap[$areaType])) {
+                throw new \Exception("Unknown area type: " . $areaType);
+            }
+
+            $column = $columnMap[$areaType];
+
+            $stmt = $this->database->prepare("
+            SELECT {$column} as area 
+            FROM rooms 
+            WHERE id = ?
+        ");
+            $stmt->execute([$roomId]);
+            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            return $result ? (float)$result['area'] : 0;
+
+        } catch (\Exception $e) {
+            error_log("Error getting area by type: " . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Розрахунок загальної вартості на основі вибраних послуг
+     */
+    public function calculateTotal($selectedServices, $wallArea, $roomArea)
+    {
+        $total = 0;
+
+        foreach ($selectedServices as $serviceId) {
+            try {
+                $stmt = $this->database->prepare("
+                    SELECT price_per_sqm 
+                    FROM services 
+                    WHERE id = ?
+                ");
+                $stmt->execute([$serviceId]);
+                $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+                if ($result) {
+                    // Тут можна додати логіку для різних типів розрахунків
+                    // Наприклад, деякі послуги рахуються від площі стін, інші від площі кімнати
+                    $total += $result['price_per_sqm'] * $wallArea;
+                }
+            } catch (\Exception $e) {
+                error_log("Error calculating service cost: " . $e->getMessage());
+            }
+        }
+
+        return $total;
+    }
+
+    /**
+     * API метод для отримання послуг в JSON форматі з буферизацією
+     */
+    public function getServicesJson()
+    {
+        ob_start();
+
+        try {
+            header('Content-Type: application/json');
+
+            $roomTypeId = $_GET['room_type_id'] ?? null;
+
+            if (!$roomTypeId) {
+                http_response_code(400);
+                $response = json_encode(['error' => 'room_type_id is required']);
+                ob_end_clean();
+                echo $response;
+                flush();
+                return;
+            }
+
+            $services = $this->getGroupedServicesByRoomType($roomTypeId);
+            $response = json_encode($services);
+
+            ob_end_clean();
+            echo $response;
+            flush();
+
+        } catch (\Exception $e) {
+            error_log("Error in getServicesJson: " . $e->getMessage());
+            ob_end_clean();
+            http_response_code(500);
+            echo json_encode(['error' => 'Internal server error']);
+            flush();
+        }
+    }
+
+    /**
+     * API метод для розрахунку вартості з буферизацією
+     */
+    public function calculateJson()
+    {
+        ob_start();
+
+        try {
+            header('Content-Type: application/json');
+
+            $input = json_decode(file_get_contents('php://input'), true);
+
+            $selectedServices = $input['services'] ?? [];
+            $wallArea = floatval($input['wall_area'] ?? 0);
+            $roomArea = floatval($input['room_area'] ?? 0);
+
+            if (empty($selectedServices) || $wallArea <= 0 || $roomArea <= 0) {
+                http_response_code(400);
+                $response = json_encode(['error' => 'Invalid input data']);
+                ob_end_clean();
+                echo $response;
+                flush();
+                return;
+            }
+
+            $total = $this->calculateTotal($selectedServices, $wallArea, $roomArea);
+
+            $response = json_encode([
+                'total' => $total,
+                'wall_area' => $wallArea,
+                'room_area' => $roomArea,
+                'services_count' => count($selectedServices)
+            ]);
+
+            ob_end_clean();
+            echo $response;
+            flush();
+
+        } catch (\Exception $e) {
+            error_log("Error in calculateJson: " . $e->getMessage());
+            ob_end_clean();
+            http_response_code(500);
+            echo json_encode(['error' => 'Internal server error']);
+            flush();
+        }
+    }
+    private function getBasePath()
+    {
+        // Визначаємо базовий шлях відносно current working directory
+        return realpath(__DIR__ . '/../../') . DIRECTORY_SEPARATOR;
+    }
+    public function renderServiceForm($serviceBlocks, $areas)
+    {
+        ob_start();
+
+        try {
+            $pageTitle = "Додати нову послугу - Адміністративна панель";
+
+            // Використовуємо базовий шлях
+            $basePath = $this->getBasePath();
+            $templatePath = $basePath . 'Views' . DIRECTORY_SEPARATOR . 'admin' . DIRECTORY_SEPARATOR . 'service_create.php';
+
+            if (!file_exists($templatePath)) {
+                throw new \Exception("Template file not found at: " . $templatePath);
+            }
+
+            include $templatePath;
+
+            $content = ob_get_contents();
+
+            ob_end_clean();
+
+            echo $content;
+            flush();
+
+        } catch (\Exception $e) {
+            error_log("Error rendering service form: " . $e->getMessage());
+            ob_end_clean();
+            echo "Помилка завантаження сторінки: " . $e->getMessage();
+            flush();
+        }
+    }
+
+    public function renderTemplate($templateName, $data = [])
+    {
+        ob_start();
+
+        try {
+            // Розпаковуємо дані у змінні
+            extract($data);
+
+            $basePath = $this->getBasePath();
+            $templatePath = $basePath . 'Views' . DIRECTORY_SEPARATOR . $templateName . '.php';
+
+            if (!file_exists($templatePath)) {
+                throw new \Exception("Template file not found: " . $templatePath);
+            }
+
+            include $templatePath;
+
+            $content = ob_get_contents();
+            ob_end_clean();
+
+            echo $content;
+            flush();
+
+        } catch (\Exception $e) {
+            error_log("Error rendering template: " . $e->getMessage());
+            ob_end_clean();
+            echo "Помилка завантаження шаблону: " . $e->getMessage();
+            flush();
+        }
+    }
+    private function outputJson($data, $httpCode = 200)
+    {
+        ob_start();
+
+        if ($httpCode !== 200) {
+            http_response_code($httpCode);
+        }
 
         header('Content-Type: application/json');
 
-        $block_id = intval($_GET['block_id'] ?? 0);
-
-        if ($block_id <= 0) {
-            ob_end_clean();
-            echo json_encode(['success' => false, 'message' => 'Невірний ID блоку']);
-            return;
-        }
-
-        $services = $this->getServicesByBlock($block_id);
+        $response = json_encode($data);
 
         ob_end_clean();
-        echo json_encode([
-            'success' => true,
-            'services' => $services
-        ]);
+        echo $response;
+        flush();
     }
 
-    // Методи для AJAX запитів
-    public function handleAjaxRequest() {
-        $action = $_GET['ajax_action'] ?? '';
+    /**
+     * Метод для обробки помилок з буферизацією
+     */
+    private function handleError($message, $httpCode = 500)
+    {
+        error_log($message);
 
-        switch ($action) {
-            case 'get_services_by_block':
-                $this->getServicesByBlockAjax();
-                break;
-            case 'update_price':
-                $service_id = intval($_GET['service_id'] ?? 0);
-                $this->updatePrice($service_id);
-                break;
-            case 'delete_service':
-                $service_id = intval($_GET['service_id'] ?? 0);
-                $this->delete($service_id);
-                break;
-            case 'bulk_delete':
-                $this->bulkDelete();
-                break;
-            default:
-                ob_start();
-                header('Content-Type: application/json');
-                ob_end_clean();
-                echo json_encode(['success' => false, 'message' => 'Невідома дія']);
-        }
+        ob_end_clean();
+
+        $this->outputJson([
+            'success' => false,
+            'error' => $message
+        ], $httpCode);
     }
 }

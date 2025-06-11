@@ -39,9 +39,9 @@
                     <i class="fas fa-shopping-cart"></i>
                     Замовлення
                 </a></li>
-            <li><a href="?action=statistics">
-                    <i class="fas fa-chart-bar"></i>
-                    Статистика
+            <li><a href="?action=services" >
+                    <i class="fas fa-wrench"></i>
+                    Послуги
                 </a></li>
         </ul>
     </div>
