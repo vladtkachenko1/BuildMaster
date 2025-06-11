@@ -6,7 +6,8 @@
     <title>Управління замовленнями - BuildMaster</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/BuildMaster/UI/css/admin.css">
-    <link rel="stylesheet" href="/BuildMaster/UI/css/orders.css">
+    <link rel="stylesheet" href="/BuildMaster/UI/css/order.css">
+
 </head>
 <body>
 <a href="/BuildMaster/" class="btn btn-primary back-to-site">
@@ -80,10 +81,7 @@
             <i class="fas fa-shopping-cart"></i>
             Замовлення (<?= isset($totalOrders) ? $totalOrders : count($orders ?? []) ?> всього)
             <div class="header-actions">
-                <button class="btn btn-sm btn-success" onclick="exportOrders()">
-                    <i class="fas fa-download"></i>
-                    Експорт
-                </button>
+
             </div>
         </div>
         <div class="card-body">
@@ -116,9 +114,7 @@
                                         <div class="client-info">
                                             <strong><?= htmlspecialchars(($order['first_name'] ?? '') . ' ' . ($order['last_name'] ?? '')) ?></strong>
                                             <div class="client-email"><?= htmlspecialchars($order['user_email'] ?? '') ?></div>
-                                            <div class="client-type">
-                                                <i class="fas fa-user-check"></i> Зареєстрований
-                                            </div>
+
                                         </div>
                                     <?php else: ?>
                                         <div class="client-info">
@@ -165,11 +161,7 @@
                                                 title="Переглянути деталі">
                                             <i class="fas fa-eye"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-success"
-                                                onclick="exportOrder(<?= $order['id'] ?>)"
-                                                title="Експортувати в CSV">
-                                            <i class="fas fa-download"></i>
-                                        </button>
+
                                         <button class="btn btn-sm btn-warning"
                                                 onclick="editOrder(<?= $order['id'] ?>)"
                                                 title="Редагувати">

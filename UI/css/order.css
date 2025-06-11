@@ -1,0 +1,939 @@
+
+.table-responsive {
+    overflow-x: auto;
+    margin: 0 -15px; /* Компенсація padding card-body */
+}
+
+.card-body {
+    padding: 0; /* Прибираємо padding з card-body для таблиці */
+}
+
+.card-body .search-form {
+    padding: 20px; /* Повертаємо padding тільки для search-form */
+}
+
+/* Основна таблиця */
+.admin-table {
+    width: 100%;
+    min-width: 800px; /* Зменшуємо мінімальну ширину */
+    border-collapse: separate;
+    border-spacing: 0;
+    background: white;
+    border-radius: 0; /* Прибираємо border-radius для таблиці в responsive */
+    overflow: hidden;
+    box-shadow: none; /* Прибираємо тінь, щоб не конфліктувала з card */
+}
+
+.admin-table thead {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.admin-table th {
+    padding: 15px 10px; /* Зменшуємо горизонтальний padding */
+    font-weight: 600;
+    text-align: left;
+    border: none;
+    font-size: 14px;
+    letter-spacing: 0.5px;
+}
+
+.admin-table th:hover {
+    background: rgba(255,255,255,0.1);
+    cursor: pointer;
+}
+
+.admin-table tbody tr {
+    border-bottom: 1px solid #eee;
+    transition: all 0.3s ease;
+}
+
+.admin-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.admin-table tbody tr:hover {
+    background: #f8f9fa;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+}
+
+.admin-table td {
+    padding: 15px 10px; /* Зменшуємо горизонтальний padding */
+    vertical-align: top;
+    border: none;
+    font-size: 14px;
+}
+
+/* Покращене відображення інформації про клієнта */
+.client-info {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 180px; /* Зменшуємо мінімальну ширину */
+    max-width: 200px; /* Додаємо максимальну ширину */
+}
+
+.client-info strong {
+    color: #333;
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.client-email {
+    font-size: 13px;
+    color: #666;
+    padding: 4px 8px;
+    background: #f8f9fa;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    border-left: 3px solid #667eea;
+}
+
+.client-type {
+    font-size: 12px;
+    color: #667eea;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.client-type i {
+    width: 14px;
+    text-align: center;
+}
+
+/* Покращені бейджі статусів */
+.badge {
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 100px;
+    justify-content: center;
+}
+
+.badge::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.badge.status-draft {
+    background: linear-gradient(135deg, #6c757d, #868e96);
+    color: white;
+}
+
+.badge.status-new {
+    background: linear-gradient(135deg, #17a2b8, #20c997);
+    color: white;
+}
+
+.badge.status-in_progress {
+    background: linear-gradient(135deg, #ffc107, #fd7e14);
+    color: #333;
+}
+
+.badge.status-completed {
+    background: linear-gradient(135deg, #28a745, #20c997);
+    color: white;
+}
+
+/* Покращене відображення кількості кімнат */
+.rooms-count {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    color: #667eea;
+    font-size: 14px; /* Зменшуємо розмір */
+    padding: 6px 10px; /* Зменшуємо padding */
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 2px solid #e9ecef;
+}
+
+.rooms-count i {
+    font-size: 16px;
+}
+
+/* Покращене відображення суми */
+.amount {
+    font-weight: 700;
+    color: #28a745;
+    font-size: 15px; /* Зменшуємо розмір */
+    padding: 6px 10px; /* Зменшуємо padding */
+    background: linear-gradient(135deg, #e8f5e9, #f1f8e9);
+    border-radius: 8px;
+    border-left: 4px solid #28a745;
+    min-width: 100px; /* Зменшуємо мінімальну ширину */
+    text-align: center;
+}
+
+/* Покращене відображення дати */
+.date {
+    font-size: 12px; /* Зменшуємо розмір */
+    color: #666;
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    font-family: 'Monaco', 'Menlo', monospace;
+    border: 1px solid #e9ecef;
+    min-width: 120px; /* Зменшуємо мінімальну ширину */
+}
+
+/* Покращені кнопки дій */
+.action-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+    min-width: 140px; /* Зменшуємо мінімальну ширину */
+    max-width: 160px;
+}
+
+.action-buttons .btn {
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 13px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    height: 36px;
+}
+
+.action-buttons .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+}
+
+.btn-success {
+    background: linear-gradient(135deg, #28a745, #20c997);
+    color: white;
+}
+
+.btn-warning {
+    background: linear-gradient(135deg, #ffc107, #fd7e14);
+    color: #333;
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, #dc3545, #c82333);
+    color: white;
+}
+
+/* ID замовлення */
+.admin-table td:nth-child(2) {
+    font-family: 'Monaco', 'Menlo', monospace;
+    font-weight: 700;
+    color: #667eea;
+    font-size: 15px;
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    border-radius: 6px;
+    text-align: center;
+    min-width: 60px; /* Зменшуємо ширину ID колонки */
+}
+
+/* Чекбокси */
+.admin-table input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #667eea;
+    cursor: pointer;
+}
+
+/* Checkbox колонка */
+.admin-table td:nth-child(1),
+.admin-table th:nth-child(1) {
+    width: 40px;
+    min-width: 40px;
+    text-align: center;
+}
+
+/* Статус колонка */
+.admin-table td:nth-child(4) {
+    min-width: 100px;
+}
+
+/* Заголовки таблиці з іконками */
+.admin-table th[onclick] {
+    position: relative;
+    user-select: none;
+}
+
+.admin-table th[onclick]:after {
+    content: '↕';
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    opacity: 0.6;
+}
+
+.admin-table th[onclick]:hover:after {
+    opacity: 1;
+}
+
+/* Responsive покращення */
+@media (max-width: 1200px) {
+    .admin-table {
+        font-size: 13px;
+        min-width: 700px;
+    }
+
+    .admin-table td {
+        padding: 12px 8px;
+    }
+
+    .admin-table th {
+        padding: 12px 8px;
+    }
+
+    .client-info {
+        min-width: 150px;
+    }
+
+    .action-buttons {
+        min-width: 120px;
+    }
+
+    .action-buttons .btn {
+        min-width: 35px;
+        height: 32px;
+        padding: 6px 10px;
+    }
+}
+
+@media (max-width: 768px) {
+    .table-responsive {
+        margin: 0 -10px;
+    }
+
+    .admin-table {
+        font-size: 12px;
+        min-width: 600px;
+    }
+
+    .admin-table td,
+    .admin-table th {
+        padding: 10px 8px;
+    }
+
+    .client-info {
+        min-width: 120px;
+    }
+
+    .client-info strong {
+        font-size: 14px;
+    }
+
+    .client-email {
+        font-size: 12px;
+    }
+
+    .rooms-count {
+        font-size: 13px;
+        padding: 5px 8px;
+    }
+
+    .amount {
+        font-size: 14px;
+        padding: 5px 8px;
+        min-width: 90px;
+    }
+
+    .date {
+        font-size: 11px;
+        min-width: 110px;
+    }
+
+    .action-buttons {
+        flex-direction: column;
+        gap: 4px;
+        min-width: 100px;
+    }
+
+    .action-buttons .btn {
+        width: 100%;
+        min-width: 30px;
+        height: 30px;
+        padding: 5px 8px;
+    }
+}
+
+/* Анімації при завантаженні */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.admin-table tbody tr {
+    animation: fadeInUp 0.5s ease forwards;
+}
+
+.admin-table tbody tr:nth-child(1) { animation-delay: 0.1s; }
+.admin-table tbody tr:nth-child(2) { animation-delay: 0.2s; }
+.admin-table tbody tr:nth-child(3) { animation-delay: 0.3s; }
+.admin-table tbody tr:nth-child(4) { animation-delay: 0.4s; }
+.admin-table tbody tr:nth-child(5) { animation-delay: 0.5s; }
+
+/* Покращення для фільтрів */
+.search-form {
+    padding: 20px;
+}
+
+.search-group {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.filter-select {
+    padding: 12px 16px;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    background: white;
+    font-size: 14px;
+    cursor: pointer;
+    min-width: 200px;
+    transition: all 0.3s ease;
+}
+
+.filter-select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* Покращення для empty state */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #666;
+}
+
+.empty-state i {
+    color: #ddd;
+    margin-bottom: 20px;
+}
+
+.empty-state h3 {
+    color: #999;
+    margin-bottom: 15px;
+}
+
+.empty-state p {
+    margin-bottom: 25px;
+    font-size: 16px;
+}
+
+/* ===================================
+   ПОКРАЩЕНІ СТИЛІ ДЛЯ МОДАЛЬНИХ ВІКОН
+   =================================== */
+
+/* Основа модального вікна */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 2000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    animation: modalFadeIn 0.3s ease;
+}
+
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+        backdrop-filter: blur(0px);
+    }
+    to {
+        opacity: 1;
+        backdrop-filter: blur(8px);
+    }
+}
+
+/* Контент модального вікна */
+.modal-content {
+    position: relative;
+    background: white;
+    margin: 3% auto;
+    width: 90%;
+    max-width: 600px;
+    border-radius: 16px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: modalSlideIn 0.4s ease;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.modal-lg {
+    max-width: 900px;
+}
+
+@keyframes modalSlideIn {
+    from {
+        transform: translateY(-50px) scale(0.9);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+}
+
+/* Заголовки модальних вікон */
+.modal-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 25px 30px;
+    border-bottom: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.modal-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(45deg, rgba(255,255,255,0.1) 0%, transparent 100%);
+    pointer-events: none;
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 1.8em;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: relative;
+    z-index: 1;
+}
+
+.modal-header h2 i {
+    font-size: 1.2em;
+    opacity: 0.9;
+}
+
+/* Кнопка закриття */
+.close {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 32px;
+    font-weight: 300;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    position: relative;
+    z-index: 1;
+}
+
+
+
+/* Тіло модального вікна */
+.modal-body {
+    padding: 0;
+    overflow-y: auto;
+    flex: 1;
+    background: #fafbfc;
+}
+
+/* Стилізація форм */
+.modal-body form {
+    padding: 30px;
+}
+
+.form-group {
+    margin-bottom: 25px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 10px;
+    font-weight: 600;
+    color: #333;
+    font-size: 15px;
+    position: relative;
+}
+
+.form-group label::after {
+    content: '';
+    position: absolute;
+    bottom: -3px;
+    left: 0;
+    width: 30px;
+    height: 2px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border-radius: 1px;
+}
+
+.form-control {
+    width: 100%;
+    padding: 15px 18px;
+    border: 2px solid #e9ecef;
+    border-radius: 10px;
+    font-size: 15px;
+    transition: all 0.3s ease;
+    background: white;
+    font-family: inherit;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+    transform: translateY(-1px);
+}
+
+.form-control:hover {
+    border-color: #b8c5f2;
+}
+
+/* Стилізація select */
+select.form-control {
+    cursor: pointer;
+    background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 5"><path fill="%23666" d="M2 0L0 2h4zm0 5L0 3h4z"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 15px center;
+    background-size: 12px;
+    appearance: none;
+    padding-right: 45px;
+}
+
+/* Стилізація textarea */
+textarea.form-control {
+    resize: vertical;
+    min-height: 120px;
+    font-family: inherit;
+    line-height: 1.6;
+}
+
+/* Дії форми */
+.form-actions {
+    display: flex;
+    gap: 15px;
+    justify-content: flex-end;
+    margin-top: 35px;
+    padding-top: 25px;
+    border-top: 1px solid #eee;
+}
+
+/* Стилізовані кнопки */
+.modal .btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    position: relative;
+    overflow: hidden;
+}
+
+.modal .btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    transition: left 0.5s;
+}
+
+.modal .btn:hover::before {
+    left: 100%;
+}
+
+.modal .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+}
+
+.modal .btn-primary {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+}
+
+.modal .btn-secondary {
+    background: linear-gradient(135deg, #6c757d, #868e96);
+    color: white;
+}
+
+.modal .btn-danger {
+    background: linear-gradient(135deg, #dc3545, #c82333);
+    color: white;
+}
+
+/* Спеціальні стилі для модального вікна видалення */
+#deleteModal .modal-header {
+    background: linear-gradient(135deg, #dc3545, #c82333);
+}
+
+.delete-warning {
+    text-align: center;
+    padding: 40px 30px 30px;
+}
+
+.delete-warning > i {
+    color: #dc3545;
+    margin-bottom: 20px;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+.delete-warning h3 {
+    color: #dc3545;
+    margin-bottom: 15px;
+    font-size: 1.5em;
+    font-weight: 600;
+}
+
+.delete-warning p {
+    color: #666;
+    font-size: 16px;
+    line-height: 1.6;
+    margin-bottom: 25px;
+}
+
+.order-details {
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    padding: 20px;
+    border-radius: 10px;
+    margin: 20px 0;
+    text-align: left;
+    border: 1px solid #dee2e6;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+}
+
+/* Завантаження */
+.loading {
+    text-align: center;
+    padding: 60px;
+    color: #666;
+}
+
+.loading i {
+    font-size: 3em;
+    margin-bottom: 20px;
+    color: #667eea;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.loading::after {
+    content: '';
+    display: block;
+    width: 40px;
+    height: 4px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    margin: 20px auto;
+    border-radius: 2px;
+    animation: loadingBar 1.5s ease-in-out infinite;
+}
+
+@keyframes loadingBar {
+    0% { width: 0; }
+    50% { width: 60px; }
+    100% { width: 0; }
+}
+
+/* Стилі для деталей замовлення */
+.order-details-content {
+    padding: 30px;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+.order-content {
+    padding: 30px;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.order-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid #f1f3f4;
+}
+
+.order-header h3 {
+    margin: 0;
+    color: #333;
+    font-size: 2em;
+    font-weight: 700;
+}
+
+.order-section {
+    background: white;
+    border-radius: 12px;
+    padding: 25px;
+    margin-bottom: 25px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    border: 1px solid #f1f3f4;
+}
+
+.order-section h4 {
+    margin: 0 0 20px 0;
+    color: #444;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 1.4em;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #f8f9fa;
+}
+
+.info-row {
+    display: flex;
+    margin-bottom: 15px;
+    padding: 15px 0;
+    border-bottom: 1px solid #f8f9fa;
+    align-items: flex-start;
+}
+
+.info-row:last-child {
+    border-bottom: none;
+}
+
+.info-row span:first-child {
+    width: 200px;
+    color: #666;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.info-row span:last-child {
+    flex: 1;
+    color: #333;
+    font-weight: 500;
+}
+
+/* Responsive дизайн для модальних вікон */
+@media (max-width: 768px) {
+    .modal-content {
+        width: 95%;
+        margin: 5% auto;
+        border-radius: 12px;
+    }
+
+    .modal-header {
+        padding: 20px;
+    }
+
+    .modal-header h2 {
+        font-size: 1.5em;
+    }
+
+    .modal-body form {
+        padding: 20px;
+    }
+
+    .form-actions {
+        flex-direction: column;
+    }
+
+    .modal .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .info-row {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .info-row span:first-child {
+        width: 100%;
+        color: #667eea;
+        font-size: 14px;
+    }
+
+    .delete-warning {
+        padding: 30px 20px 20px;
+    }
+}
+
+/* Анімації при закритті */
+.modal.closing {
+    animation: modalFadeOut 0.3s ease forwards;
+}
+
+.modal.closing .modal-content {
+    animation: modalSlideOut 0.3s ease forwards;
+}
+
+@keyframes modalFadeOut {
+    to {
+        opacity: 0;
+        backdrop-filter: blur(0px);
+    }
+}
+
+@keyframes modalSlideOut {
+    to {
+        transform: translateY(-50px) scale(0.9);
+        opacity: 0;
+    }
+}

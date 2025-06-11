@@ -83,22 +83,30 @@ function executeController(callable $callback, string $errorMessage = 'Поми�
     }
 }
 
-// Тестовий роут для діагностики
-if (preg_match('/^\/BuildMaster\/calculator\/diagnose-room\/(\d+)$/', $uri, $matches)) {
-    $roomId = intval($matches[1]);
-    $controller = new \BuildMaster\Controllers\RoomEditController($database);
-    $controller->diagnoseTables($roomId);
-    exit;
-}
-
 // ================================
 // МАРШРУТИЗАЦІЯ
 // ================================
 
-// ВАЖЛИВО: Спочатку обробляємо найбільш специфічні маршрути з параметрами
+// API маршрути - перевіряємо спочатку
+if (preg_match('/^\/api\/order-details$/', $path)) {
+    error_log("Matched API order-details route");
 
-// ВИПРАВЛЕНО: API маршрут для отримання JSON даних послуг (має бути ПЕРШИМ!)
-if (preg_match('/^\/calculator\/room-edit-services\/(\d+)$/', $path, $matches)) {
+    executeController(function() use ($database) {
+        require_once __DIR__ . '/Controllers/UserOrdersController.php';
+        $controller = new UserOrdersController($database);
+        $controller->getOrderDetails();
+    }, 'Помилка завантаження деталей замовлення');
+}
+elseif (preg_match('/^\/api\/logout$/', $path)) {
+    error_log("Matched API logout route");
+
+    executeController(function() {
+        session_destroy();
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['success' => true]);
+    }, 'Помилка виходу з системи');
+}
+elseif (preg_match('/^\/calculator\/room-edit-services\/(\d+)$/', $path, $matches)) {
     error_log("Matched room-edit-services API route with ID: " . $matches[1]);
 
     executeController(function() use ($database, $matches) {
@@ -111,13 +119,11 @@ if (preg_match('/^\/calculator\/room-edit-services\/(\d+)$/', $path, $matches)) 
             return;
         }
 
-        // Цей маршрут тільки для JSON API
         require_once __DIR__ . '/Controllers/RoomEditController.php';
         $controller = new \BuildMaster\Controllers\RoomEditController($database);
-        $controller->getServicesForEdit($roomId); // Цей метод повертає JSON
+        $controller->getServicesForEdit($roomId);
     }, 'Помилка отримання послуг для редагування');
 }
-// ВИПРАВЛЕНО: Маршрут для HTML сторінки редагування кімнати (має бути ДРУГИМ!)
 elseif (preg_match('/^\/calculator\/room-edit\/(\d+)$/', $path, $matches)) {
     error_log("Matched room-edit HTML route with ID: " . $matches[1]);
 
@@ -129,10 +135,9 @@ elseif (preg_match('/^\/calculator\/room-edit\/(\d+)$/', $path, $matches)) {
             exit;
         }
 
-        // Використовуємо RoomEditController для показу HTML сторінки
         require_once __DIR__ . '/Controllers/RoomEditController.php';
         $controller = new \BuildMaster\Controllers\RoomEditController($database);
-        $controller->editRoom($roomId); // Цей метод показує HTML view
+        $controller->editRoom($roomId);
     }, 'Помилка завантаження сторінки редагування кімнати');
 }
 // Debug маршрут
@@ -180,8 +185,6 @@ else {
         // ================================
         // АУТЕНТИФІКАЦІЯ
         // ================================
-
-
         case '/register':
             executeController(function() {
                 if (class_exists('AuthController')) {
@@ -218,12 +221,20 @@ else {
                 }
             }, 'Помилка завантаження адміністративної панелі');
             break;
-            // ================================
+
+        case '/users-orders':
+            executeController(function() use ($database) {
+                require_once __DIR__ . '/Controllers/UserOrdersController.php';
+                $controller = new UserOrdersController($database);
+                $controller->index();
+            }, 'Помилка завантаження сторінки замовлень');
+            break;
+
+        // ================================
         // КАЛЬКУЛЯТОР - ГОЛОВНІ СТОРІНКИ
         // ================================
 
         case '/calculator':
-        case '/Calculator':
             executeController(function() use ($database) {
                 $controller = new CalculatorController($database);
                 $controller->index();

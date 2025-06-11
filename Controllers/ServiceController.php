@@ -24,6 +24,9 @@ class ServiceController {
             exit;
         }
 
+        // Увімкнути буферизацію
+        ob_start();
+
         try {
             // Валідація даних
             $name = trim($_POST['name'] ?? '');
@@ -78,7 +81,8 @@ class ServiceController {
             // Підтвердження транзакції
             $this->conn->commit();
 
-            // Повернення успішної відповіді
+            // Очистити буфер та повернути успішну відповідь
+            ob_end_clean();
             header('Content-Type: application/json');
             echo json_encode([
                 'success' => true,
@@ -90,6 +94,8 @@ class ServiceController {
             // Відкат транзакції при помилці
             $this->conn->rollback();
 
+            // Очистити буфер та повернути помилку
+            ob_end_clean();
             header('Content-Type: application/json');
             echo json_encode([
                 'success' => false,
@@ -117,6 +123,9 @@ class ServiceController {
             header('HTTP/1.1 405 Method Not Allowed');
             exit;
         }
+
+        // Увімкнути буферизацію
+        ob_start();
 
         try {
             // Валідація даних
@@ -150,7 +159,7 @@ class ServiceController {
                 UPDATE services SET 
                     name = ?, slug = ?, description = ?, service_block_id = ?, 
                     price_per_sqm = ?, unit = ?, depends_on_service_id = ?, 
-                    is_required = ?, is_active = ?, sort_order = ?
+                    is_required = ?, is_active = ?, sort_order = ?, updated_at = NOW()
                 WHERE id = ?
             ");
 
@@ -176,7 +185,8 @@ class ServiceController {
             // Підтвердження транзакції
             $this->conn->commit();
 
-            // Повернення успішної відповіді
+            // Очистити буфер та повернути успішну відповідь
+            ob_end_clean();
             header('Content-Type: application/json');
             echo json_encode([
                 'success' => true,
@@ -187,6 +197,8 @@ class ServiceController {
             // Відкат транзакції при помилці
             $this->conn->rollback();
 
+            // Очистити буфер та повернути помилку
+            ob_end_clean();
             header('Content-Type: application/json');
             echo json_encode([
                 'success' => false,
@@ -195,38 +207,155 @@ class ServiceController {
         }
     }
 
-    public function delete($id) {
+    /**
+     * Швидке оновлення ціни послуги
+     */
+    public function updatePrice($id) {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('HTTP/1.1 405 Method Not Allowed');
+            exit;
+        }
+
+        // Увімкнути буферизацію
+        ob_start();
+
         try {
-            // Перевірка чи існує послуга
-            $service = $this->getServiceById($id);
+            // Валідація ID
+            $service_id = intval($id);
+            if ($service_id <= 0) {
+                throw new Exception('Невірний ID послуги');
+            }
+
+            // Отримання та валідація нової ціни
+            $new_price = floatval($_POST['price'] ?? 0);
+            if ($new_price <= 0) {
+                throw new Exception('Ціна повинна бути більше 0');
+            }
+
+            // Перевірка існування послуги
+            $service = $this->getServiceById($service_id);
             if (!$service) {
                 throw new Exception('Послуга не знайдена');
+            }
+
+            // Збереження старої ціни для логування
+            $old_price = $service['price_per_sqm'];
+
+            // Оновлення ціни
+            $stmt = $this->conn->prepare("
+                UPDATE services 
+                SET price_per_sqm = ?, updated_at = NOW() 
+                WHERE id = ?
+            ");
+
+            $stmt->execute([$new_price, $service_id]);
+
+            // Перевірка чи оновлення пройшло успішно
+            if ($stmt->rowCount() === 0) {
+                throw new Exception('Не вдалося оновити ціну');
+            }
+
+            // Логування зміни ціни (якщо потрібно)
+            error_log("Price updated for service ID {$service_id}: {$old_price} -> {$new_price}");
+
+            // Очистити буфер та повернути успішну відповідь
+            ob_end_clean();
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => true,
+                'message' => 'Ціну успішно оновлено',
+                'old_price' => $old_price,
+                'new_price' => $new_price,
+                'service_name' => $service['name']
+            ]);
+
+        } catch (Exception $e) {
+            // Очистити буфер та повернути помилку
+            ob_end_clean();
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => false,
+                'message' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Видалення послуги з перевірками
+     */
+    public function delete($id) {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $_SERVER['REQUEST_METHOD'] !== 'DELETE') {
+            header('HTTP/1.1 405 Method Not Allowed');
+            exit;
+        }
+
+        // Увімкнути буферизацію
+        ob_start();
+
+        try {
+            $service_id = intval($id);
+            if ($service_id <= 0) {
+                throw new Exception('Невірний ID послуги');
+            }
+
+            // Перевірка чи існує послуга
+            $service = $this->getServiceById($service_id);
+            if (!$service) {
+                throw new Exception('Послуга не знайдена');
+            }
+
+            // Перевірка чи послуга використовується в замовленнях
+            if ($this->isServiceUsedInOrders($service_id)) {
+                throw new Exception('Неможливо видалити послугу, яка використовується в замовленнях. Спочатку деактивуйте її.');
+            }
+
+            // Перевірка чи від неї залежать інші послуги
+            if ($this->hasServiceDependencies($service_id)) {
+                throw new Exception('Неможливо видалити послугу, від якої залежать інші послуги');
             }
 
             // Початок транзакції
             $this->conn->beginTransaction();
 
             // Видалення зв'язків з областями
-            $delete_areas = $this->conn->prepare("DELETE FROM service_area WHERE service_id = ?");
-            $delete_areas->execute([$id]);
+            $delete_areas_stmt = $this->conn->prepare("DELETE FROM service_area WHERE service_id = ?");
+            $delete_areas_stmt->execute([$service_id]);
 
             // Видалення послуги
-            $delete_service = $this->conn->prepare("DELETE FROM services WHERE id = ?");
-            $delete_service->execute([$id]);
+            $delete_service_stmt = $this->conn->prepare("DELETE FROM services WHERE id = ?");
+            $delete_service_stmt->execute([$service_id]);
+
+            // Перевірка чи видалення пройшло успішно
+            if ($delete_service_stmt->rowCount() === 0) {
+                throw new Exception('Не вдалося видалити послугу');
+            }
 
             // Підтвердження транзакції
             $this->conn->commit();
 
+            // Логування видалення
+            error_log("Service deleted: ID {$service_id}, Name: {$service['name']}");
+
+            // Очистити буфер та повернути успішну відповідь
+            ob_end_clean();
             header('Content-Type: application/json');
             echo json_encode([
                 'success' => true,
-                'message' => 'Послугу успішно видалено'
+                'message' => 'Послугу "' . $service['name'] . '" успішно видалено',
+                'deleted_service' => [
+                    'id' => $service_id,
+                    'name' => $service['name']
+                ]
             ]);
 
         } catch (Exception $e) {
             // Відкат транзакції при помилці
-            $this->conn->rollback();
+            if ($this->conn->inTransaction()) {
+                $this->conn->rollback();
+            }
 
+            // Очистити буфер та повернути помилку
+            ob_end_clean();
             header('Content-Type: application/json');
             echo json_encode([
                 'success' => false,
@@ -234,6 +363,163 @@ class ServiceController {
             ]);
         }
     }
+
+    /**
+     * Масове видалення послуг
+     */
+    public function bulkDelete() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('HTTP/1.1 405 Method Not Allowed');
+            exit;
+        }
+
+        // Увімкнути буферизацію
+        ob_start();
+
+        try {
+            $service_ids = $_POST['service_ids'] ?? [];
+
+            if (empty($service_ids) || !is_array($service_ids)) {
+                throw new Exception('Не вибрано жодної послуги для видалення');
+            }
+
+            // Валідація ID
+            $validated_ids = [];
+            foreach ($service_ids as $id) {
+                $id = intval($id);
+                if ($id > 0) {
+                    $validated_ids[] = $id;
+                }
+            }
+
+            if (empty($validated_ids)) {
+                throw new Exception('Невірні ID послуг');
+            }
+
+            $deleted_services = [];
+            $errors = [];
+
+            // Початок транзакції
+            $this->conn->beginTransaction();
+
+            foreach ($validated_ids as $service_id) {
+                try {
+                    // Перевірка існування послуги
+                    $service = $this->getServiceById($service_id);
+                    if (!$service) {
+                        $errors[] = "Послуга з ID {$service_id} не знайдена";
+                        continue;
+                    }
+
+                    // Перевірки перед видаленням
+                    if ($this->isServiceUsedInOrders($service_id)) {
+                        $errors[] = "Послугу '{$service['name']}' неможливо видалити - використовується в замовленнях";
+                        continue;
+                    }
+
+                    if ($this->hasServiceDependencies($service_id)) {
+                        $errors[] = "Послугу '{$service['name']}' неможливо видалити - від неї залежать інші послуги";
+                        continue;
+                    }
+
+                    // Видалення зв'язків з областями
+                    $delete_areas_stmt = $this->conn->prepare("DELETE FROM service_area WHERE service_id = ?");
+                    $delete_areas_stmt->execute([$service_id]);
+
+                    // Видалення послуги
+                    $delete_service_stmt = $this->conn->prepare("DELETE FROM services WHERE id = ?");
+                    $delete_service_stmt->execute([$service_id]);
+
+                    if ($delete_service_stmt->rowCount() > 0) {
+                        $deleted_services[] = [
+                            'id' => $service_id,
+                            'name' => $service['name']
+                        ];
+                    }
+
+                } catch (Exception $e) {
+                    $errors[] = "Помилка при видаленні послуги з ID {$service_id}: " . $e->getMessage();
+                }
+            }
+
+            // Підтвердження транзакції
+            $this->conn->commit();
+
+            // Логування
+            if (!empty($deleted_services)) {
+                $deleted_names = array_column($deleted_services, 'name');
+                error_log("Bulk delete completed. Deleted services: " . implode(', ', $deleted_names));
+            }
+
+            // Очистити буфер та повернути результат
+            ob_end_clean();
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => true,
+                'message' => count($deleted_services) . ' послуг успішно видалено',
+                'deleted_services' => $deleted_services,
+                'errors' => $errors,
+                'total_processed' => count($validated_ids),
+                'successfully_deleted' => count($deleted_services)
+            ]);
+
+        } catch (Exception $e) {
+            // Відкат транзакції при помилці
+            if ($this->conn->inTransaction()) {
+                $this->conn->rollback();
+            }
+
+            // Очистити буфер та повернути помилку
+            ob_end_clean();
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => false,
+                'message' => $e->getMessage()
+            ]);
+        }
+    }
+
+    // Приватні методи для перевірок
+
+    /**
+     * Перевірка чи послуга використовується в замовленнях
+     */
+    private function isServiceUsedInOrders($service_id) {
+        try {
+            $stmt = $this->conn->prepare("
+                SELECT COUNT(*) as count 
+                FROM order_services 
+                WHERE service_id = ?
+            ");
+            $stmt->execute([$service_id]);
+            $result = $stmt->fetch();
+            return $result['count'] > 0;
+        } catch (PDOException $e) {
+            error_log("Database error in isServiceUsedInOrders: " . $e->getMessage());
+            return true; // У випадку помилки вважаємо що використовується (безпечніше)
+        }
+    }
+
+    /**
+     * Перевірка чи від послуги залежать інші послуги
+     */
+    private function hasServiceDependencies($service_id) {
+        try {
+            $stmt = $this->conn->prepare("
+                SELECT COUNT(*) as count 
+                FROM services 
+                WHERE depends_on_service_id = ?
+            ");
+            $stmt->execute([$service_id]);
+            $result = $stmt->fetch();
+            return $result['count'] > 0;
+        } catch (PDOException $e) {
+            error_log("Database error in hasServiceDependencies: " . $e->getMessage());
+            return true; // У випадку помилки вважаємо що є залежності (безпечніше)
+        }
+    }
+
+    // Існуючі приватні методи
 
     private function getAllServices() {
         try {
@@ -340,17 +626,22 @@ class ServiceController {
     }
 
     public function getServicesByBlockAjax() {
+        // Увімкнути буферизацію
+        ob_start();
+
         header('Content-Type: application/json');
 
         $block_id = intval($_GET['block_id'] ?? 0);
 
         if ($block_id <= 0) {
+            ob_end_clean();
             echo json_encode(['success' => false, 'message' => 'Невірний ID блоку']);
             return;
         }
 
         $services = $this->getServicesByBlock($block_id);
 
+        ob_end_clean();
         echo json_encode([
             'success' => true,
             'services' => $services
@@ -365,8 +656,21 @@ class ServiceController {
             case 'get_services_by_block':
                 $this->getServicesByBlockAjax();
                 break;
+            case 'update_price':
+                $service_id = intval($_GET['service_id'] ?? 0);
+                $this->updatePrice($service_id);
+                break;
+            case 'delete_service':
+                $service_id = intval($_GET['service_id'] ?? 0);
+                $this->delete($service_id);
+                break;
+            case 'bulk_delete':
+                $this->bulkDelete();
+                break;
             default:
+                ob_start();
                 header('Content-Type: application/json');
+                ob_end_clean();
                 echo json_encode(['success' => false, 'message' => 'Невідома дія']);
         }
     }

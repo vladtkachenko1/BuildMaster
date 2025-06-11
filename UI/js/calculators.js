@@ -29,14 +29,22 @@ class CalculatorApp {
             });
         }
 
-        // Перевіряємо існування кнопки "Назад"
-        const backBtn = document.getElementById("back-btn");
-        if (backBtn) {
-            backBtn.addEventListener("click", function (e) {
+        const backBtnRooms = document.getElementById("back-btn");
+        if (backBtnRooms) {
+            backBtnRooms.addEventListener("click", function (e) {
                 e.preventDefault();
-                window.location.href = "/BuildMaster/calculator/";
+                window.location.href = "/BuildMaster/calculator/order-rooms";
             });
         }
+
+        const backBtnHome = document.getElementById("back-btn-home");
+        if (backBtnHome) {
+            backBtnHome.addEventListener("click", function (e) {
+                e.preventDefault();
+                window.location.href = "/BuildMaster";
+            });
+        }
+
 
         // Перевіряємо існування кнопки закриття помилки
         const closeErrorBtn = document.getElementById('close-error-btn');

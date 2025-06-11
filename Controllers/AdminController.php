@@ -14,7 +14,6 @@ class AdminController {
         $this->db = Database::getInstance()->getConnection();
         $this->auth = new AuthController();
 
-        // Перевіряємо чи користувач є адміном
         $this->auth->requireAdmin();
     }
 
@@ -843,8 +842,6 @@ class AdminController {
 
         return $html;
     }
-
-// Додати методи для масових операцій, які викликаються з JS
     public function bulkUpdateStatus() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $orderIds = json_decode($_POST['order_ids'] ?? '[]', true);

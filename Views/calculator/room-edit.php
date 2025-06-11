@@ -232,6 +232,6 @@ if (!$roomId) {
         initialFloorArea: <?= json_encode(floatval($floorArea)) ?>
     };
 </script>
-<script src="/BuildMaster/UI/js/room-edit.js"></script>
+<script src="/BuildMaster/UI/js/room-edits.js"></script>
 </body>
 </html>

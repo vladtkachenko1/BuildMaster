@@ -449,10 +449,10 @@ class OrderController
             $this->db->beginTransaction();
 
             $stmt = $this->db->prepare("
-                UPDATE orders 
-                SET guest_name = ?, guest_email = ?, guest_phone = ?, notes = ?, status = 'new', updated_at = NOW()
-                WHERE id = ?
-            ");
+            UPDATE orders 
+            SET guest_name = ?, guest_email = ?, guest_phone = ?, notes = ?, status = 'new', updated_at = NOW()
+            WHERE id = ?
+        ");
 
             if (!$stmt->execute([$guestName, $guestEmail, $guestPhone, $notes, $orderId])) {
                 throw new \Exception('Не вдалося оновити замовлення');
@@ -467,7 +467,8 @@ class OrderController
 
             echo json_encode([
                 'success' => true,
-                'order_id' => $orderId
+                'order_id' => $orderId,
+                'redirect_url' => '/BuildMaster/users-orders'
             ]);
 
         } catch (\Exception $e) {
@@ -477,7 +478,7 @@ class OrderController
             echo json_encode(['error' => 'Помилка завершення замовлення: ' . $e->getMessage()]);
         }
     }
-// Виправлений метод editRoom в OrderController
+    // Виправлений метод editRoom в OrderController
     public function editRoom($roomId)
     {
         // Валідація roomId

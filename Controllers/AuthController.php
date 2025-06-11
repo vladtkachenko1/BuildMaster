@@ -64,9 +64,9 @@ class AuthController {
                         return;
                     }
 
-                    // ОНОВЛЕНО: Додано інформацію про адміна в сесію
+                    // ВИПРАВЛЕНО: Гарантуємо що ID зберігається як число
                     $_SESSION['user'] = [
-                        'id' => $user['id'],
+                        'id' => (int)$user['id'], // ВИПРАВЛЕНО: приводимо до int
                         'email' => $user['email'],
                         'first_name' => $user['first_name'],
                         'last_name' => $user['last_name'],
@@ -74,8 +74,11 @@ class AuthController {
                         'authenticated' => true
                     ];
 
+                    // ДОДАНО: Логуємо для відладки
+                    error_log("AuthController: User logged in with ID: " . $_SESSION['user']['id'] . " (type: " . gettype($_SESSION['user']['id']) . ")");
+
                     // Відновлюємо активне замовлення користувача
-                    $this->restoreUserActiveOrder($db, $user['id']);
+                    $this->restoreUserActiveOrder($db, (int)$user['id']); // ВИПРАВЛЕНО: приводимо до int
 
                     http_response_code(200);
                     echo json_encode([
@@ -99,6 +102,9 @@ class AuthController {
 
     private function restoreUserActiveOrder($db, $userId) {
         try {
+            // ВИПРАВЛЕНО: Явно приводимо до int
+            $userId = (int)$userId;
+
             $stmt = $db->prepare("
                 SELECT id FROM orders 
                 WHERE user_id = ? AND status = 'draft' 
@@ -108,7 +114,7 @@ class AuthController {
             $activeOrder = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($activeOrder) {
-                $_SESSION['current_order_id'] = $activeOrder['id'];
+                $_SESSION['current_order_id'] = (int)$activeOrder['id']; // ВИПРАВЛЕНО: приводимо до int
                 error_log("Restored active order {$activeOrder['id']} for user {$userId} after login");
             }
         } catch (Exception $e) {

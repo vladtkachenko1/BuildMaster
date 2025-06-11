@@ -19,10 +19,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Обробка кнопки додавання першої кімнати
     if (firstRoomBtn) {
         firstRoomBtn.addEventListener('click', function() {
-            // Очищуємо дані попередньої кімнати і режим редагування
             clearRoomSessionData();
 
-            // Переходимо прямо до форми проекту
             window.location.href = '/BuildMaster/calculator/project-form';
         });
     }
@@ -30,8 +28,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Обробка кнопки додавання нової кімнати
     if (addRoomBtn) {
         addRoomBtn.addEventListener('click', function() {
-            // Очищуємо дані попередньої кімнати і режим редагування
-            clearRoomSessionData();
+             clearRoomSessionData();
 
             // Переходимо прямо до форми проекту
             window.location.href = '/BuildMaster/calculator/project-form';
@@ -94,6 +91,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Оформлення замовлення
+// Оформлення замовлення
     if (confirmCheckout) {
         confirmCheckout.addEventListener('click', function() {
             const guestName = document.getElementById('guest-name').value.trim();
@@ -140,11 +138,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
                 },
-                body: JSON.stringify(orderData)
+                body: JSON.stringify(orderData),
+                redirect: 'manual'
             })
                 .then(response => {
                     console.log('Response status:', response.status);
+
+                    if (response.type === 'opaqueredirect' || (response.status >= 300 && response.status < 400)) {
+                        console.log('Server attempted redirect, handling manually');
+                        return { success: true, redirected: true };
+                    }
+
                     return response.json();
                 })
                 .then(data => {
@@ -165,8 +171,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             localStorage.clear();
                             sessionStorage.clear();
 
-                            // Перенаправляємо на сторінку кімнат замовлення
-                            window.location.href = '/BuildMaster/calculator/order-rooms';
+                            // ВИПРАВЛЕНО: Перенаправляємо на сторінку користувацьких замовлень
+                            window.location.href = '/BuildMaster/users-orders';
                         });
                     } else {
                         showError(data.error || 'Помилка оформлення замовлення');
@@ -183,7 +189,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
         });
     }
-
     // Обробка кнопок редагування та видалення кімнат
     document.addEventListener('click', function(e) {
         // Обробка кнопки редагування - пряме перенаправлення на сторінку редагування

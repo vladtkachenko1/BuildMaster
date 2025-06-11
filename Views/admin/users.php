@@ -9,6 +9,8 @@
     <title>Управління користувачами - BuildMaster</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/BuildMaster/UI/css/admin.css">
+    <link rel="stylesheet" href="/BuildMaster/UI/css/order.css">
+
     <style>
         /* Стилі для модальних вікон */
         .modal {
@@ -306,9 +308,9 @@
                     <i class="fas fa-shopping-cart"></i>
                     Замовлення
                 </a></li>
-            <li><a href="?action=statistics">
-                    <i class="fas fa-chart-bar"></i>
-                    Статистика
+            <li><a href="?action=create" class="<?= $action === 'create' ? 'active' : '' ?>">
+                    <i class="fas fa-wrench"></i>
+                    Послуги
                 </a></li>
         </ul>
     </div>

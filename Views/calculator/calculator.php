@@ -12,6 +12,9 @@
 <div class="calculator-container">
     <!-- Header -->
     <header class="calculator-header">
+        <button id="back-btn-home" class="back-btn">
+            <i class="fas fa-arrow-left"></i>
+        </button>
         <div class="header-content">
             <div class="logo">
                 <i class="fas fa-calculator"></i>
@@ -46,7 +49,7 @@
                     </div>
                 </div>
                 <button id="create-project-btn" class="primary-btn">
-                    <i class="fas fa-plus"></i> Створити проект
+                    <i class="fas fa-plus"></i> Створити проект або продовжити проект
                 </button>
 
             </div>
@@ -84,6 +87,6 @@
     </div>
 </div>
 
-<script src="/BuildMaster/UI/js/calculator.js"></script>
+<script src="/BuildMaster/UI/js/calculators.js"></script>
 </body>
 </html>

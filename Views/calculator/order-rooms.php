@@ -27,6 +27,9 @@ $editingRoomId = $_SESSION['editing_room_id'] ?? null;
 <div class="calculator-container">
     <!-- Header -->
     <header class="calculator-header">
+        <button id="back-btn-calculator" class="back-btn">
+            <i class="fas fa-arrow-left"></i>
+        </button>
         <div class="header-content">
             <div class="logo">
                 <i class="fas fa-shopping-cart"></i>
@@ -236,6 +239,17 @@ $editingRoomId = $_SESSION['editing_room_id'] ?? null;
         </div>
     </main>
 </div>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const backBtnCalculator = document.getElementById("back-btn-calculator");
+        if (backBtnCalculator) {
+            backBtnCalculator.addEventListener("click", function (e) {
+                e.preventDefault();
+                window.location.href = "/BuildMaster/Calculator";
+            });
+        }
+    });
+</script>
 
 <script src="/BuildMaster/UI/js/order-rooms.js"></script>
 </body>

@@ -12,6 +12,9 @@
 <div class="calculator-container">
     <!-- Header -->
     <header class="calculator-header">
+        <button id="back-btn" class="back-btn">
+            <i class="fas fa-arrow-left"></i>
+        </button>
         <div class="header-content">
             <div class="logo">
                 <i class="fas fa-calculator"></i>
@@ -24,9 +27,7 @@
     <div id="project-form-screen" class="screen active">
         <div class="form-container">
             <div class="form-header">
-                <button id="back-btn" class="back-btn">
-                    <i class="fas fa-arrow-left"></i>
-                </button>
+
                 <h2>Створення проекту</h2>
                 <div class="progress-bar">
                     <div class="progress-fill" style="width: 33%"></div>
@@ -94,6 +95,6 @@
     </div>
 </div>
 
-<script src="/BuildMaster/UI/js/calculator.js"></script>
+<script src="/BuildMaster/UI/js/calculators.js"></script>
 </body>
 </html>

@@ -32,6 +32,7 @@ $isAdmin = $isLoggedIn && isset($_SESSION['user']['is_admin']) && $_SESSION['use
             <li><a href="#about">Про нас</a></li>
             <li><a href="#contact">Контакти</a></li>
             <?php if ($isLoggedIn): ?>
+                <li><a href="http://localhost/BuildMaster/users-orders"></i> Мої замовлення</a></li>
                 <li><a href="#" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Вийти</a></li>
             <?php else: ?>
                 <li><a href="#" class="login-btn" onclick="openAuthModal('navbar')"><i class="fas fa-user"></i> Увійти</a></li>
